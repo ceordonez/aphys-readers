@@ -14,3 +14,9 @@ uv add --editable /path/to/read_instruments
 ```
 
 ## Usage
+
+```python
+from read_instruments import read_lgr
+
+df = read_lgr("/path/to/unzipped/campaign")  # 1-minute averaged DataFrame
+```

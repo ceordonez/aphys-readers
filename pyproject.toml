@@ -1,10 +1,14 @@
 [project]
 name = "read-instruments"
 version = "0.1.0"
-description = "Add your description here"
+description = "Readers for Aquatic Physics group instruments (Seabird, EXO2, LGR, Picarro)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "chardet>=7.6.0",
     "pandas>=3.0.6",
 ]
+
+[build-system]
+requires = ["uv_build>=0.9.15,<0.10.0"]
+build-backend = "uv_build"
