@@ -19,6 +19,7 @@ from read_instruments import (
     read_lgr,
     read_lgr_file,
 )
+from read_instruments.exo2 import date_formats
 
 DATA = Path(__file__).parent / "data"
 LGR_WEEK1 = DATA / "lgr/AC_AtmGHG_20200716_20200722"
@@ -57,7 +58,7 @@ def exo2_lines(path):
 
 
 @pytest.mark.parametrize("directory", [DATA, DATA / "lgr", LGR_WEEK1])
-def test_find_lgr_files_at_any_depth(directory):
+def test_find_lgr_files_recursive(directory):
     expected = 16 if directory != LGR_WEEK1 else 7
     files = find_lgr_files(directory)
     assert len(files) == expected
@@ -82,7 +83,7 @@ def test_read_lgr_file_plain_text_with_footer(tmp_path):
 
 
 def test_find_lgr_files_plain_text_skipped_when_zip_present(tmp_path):
-    date_dir = tmp_path / "AtmGHG" / "2020-07-16"
+    date_dir = tmp_path / "2020" / "2020-07-16"
     date_dir.mkdir(parents=True)
     (date_dir / LGR_ZIP.name).write_bytes(LGR_ZIP.read_bytes())
     with zipfile.ZipFile(LGR_ZIP) as zf:
@@ -90,6 +91,20 @@ def test_find_lgr_files_plain_text_skipped_when_zip_present(tmp_path):
     assert find_lgr_files(tmp_path) == [date_dir / LGR_ZIP.name]
     (date_dir / LGR_ZIP.name).unlink()
     assert find_lgr_files(tmp_path) == [date_dir / "fgga_2020-07-16_f0000.txt"]
+
+
+def test_find_lgr_files_skips_superseded_empty_and_other_files(tmp_path):
+    date_dir = tmp_path / "2020" / "2020-07-16"
+    (date_dir / "_superseded").mkdir(parents=True)
+    with zipfile.ZipFile(LGR_ZIP) as zf:
+        zf.extract(zf.namelist()[0], date_dir)
+    data_file = date_dir / "fgga_2020-07-16_f0000.txt"
+    (date_dir / "_superseded" / data_file.name).write_bytes(data_file.read_bytes()[:5000])
+    (date_dir / "_superseded" / "fgga_2020-07-16_f0000__44dfbfa9.txt").write_text("old")
+    (date_dir / "fgga_2020-07-16_b0000.txt").write_text("")
+    (date_dir / "fgga_2020-07-16_f0001.txt").write_text("")
+    (date_dir / "notes.txt").write_text("field notes")
+    assert find_lgr_files(tmp_path) == [data_file]
 
 
 def test_read_lgr_all_weeks():
@@ -179,3 +194,95 @@ def test_read_exo2_unknown_date_format(tmp_path):
 
 def test_read_exo2_empty_directory(tmp_path):
     assert read_exo2(tmp_path).empty
+
+
+def exo2_parts(path):
+    """Header cells and data rows of an old-format (comma-separated) KOR CSV."""
+    lines = exo2_lines(path)
+    start = next(i for i, line in enumerate(lines) if line.startswith("Date (MM/DD/YYYY)"))
+    return lines[start].split(","), [line.split(",") for line in lines[start + 1 :] if line]
+
+
+def new_format_lines(drop_col=None):
+    """EXO2_CSV rewritten as a newer KOR export: upper-case headers, time
+    first, ';' with decimal commas, day-first dates, newest row first."""
+    header, rows = exo2_parts(EXO2_CSV)
+    order = [1, 0, *range(2, len(header))]
+    if drop_col is not None:
+        order.remove(header.index(drop_col))
+    out = [";".join(header[i].upper() for i in order)]
+    for row in reversed(rows):
+        month, day, year = row[0].split("/")
+        row = [f"{int(day):02d}/{int(month):02d}/{year}", *row[1:]]
+        out.append(";".join(row[i] for i in order).replace(".", ","))
+    return out
+
+
+def new_format_file(path, body):
+    meta = ["sep=;", "Kor MEASUREMENT DATA FILE EXPORT", "", "FILE CREATED:;21/10/2024 10:13:46", ""]
+    path.write_text("\n".join(meta + body) + "\n", encoding="utf-16")
+    return path
+
+
+def test_find_exo2_files_one_format_per_recording(tmp_path):
+    day = tmp_path / "2020"
+    (day / "_superseded").mkdir(parents=True)
+    names = [
+        "rec_A.csv", "rec_A.xls", "rec_A.bin",  # CSV preferred
+        "rec_B.xls", "rec_B.bin",  # Excel only
+        "rec_C_1.csv", "rec_C_2.csv", "rec_C.xls",  # CSV parts preferred
+        "_superseded/rec_A__1a2b3c4d.csv",
+    ]  # fmt: skip
+    for name in names:
+        (day / name).write_text("x")
+    (day / "rec_D.csv").write_text("")  # empty
+    found = [f.relative_to(day).as_posix() for f in find_exo2_files(tmp_path)]
+    assert found == ["rec_A.csv", "rec_B.xls", "rec_C_1.csv", "rec_C_2.csv"]
+
+
+def test_read_exo2_file_new_kor_format(tmp_path):
+    path = new_format_file(tmp_path / "new.csv", new_format_lines())
+    expected = read_exo2_file(EXO2_CSV)
+    pd.testing.assert_frame_equal(read_exo2_file(path).sort_index(), expected)
+
+
+def test_read_exo2_file_multiple_sections(tmp_path):
+    first = new_format_lines()
+    second = new_format_lines(drop_col="TSS mg/L")
+    summary = ["", "MEAN VALUE:" + ";" * 25 + "1,0", "", "SENSOR SERIAL NUMBER:;;;;;;15J103285"]
+    path = new_format_file(tmp_path / "backup.csv", first[:101] + summary + [second[0], *second[101:]])
+    data = read_exo2_file(path).sort_index()
+    expected = read_exo2_file(EXO2_CSV)
+    assert len(data) == len(expected)
+    # The second section (oldest rows, as rows are newest first) lacks TSS
+    assert data["TSS_mgL"].isna().sum() == len(expected) - 100
+    pd.testing.assert_frame_equal(data.drop(columns="TSS_mgL"), expected.drop(columns="TSS_mgL"))
+
+
+def test_read_exo2_file_dot_separator(tmp_path):
+    # A KOR export with sep="." writes values with decimal commas, but splits
+    # the "Time (Fract. Sec)" header and its 0.0 values in two
+    header, rows = exo2_parts(EXO2_CSV)
+    lines = exo2_lines(EXO2_CSV)
+    meta = [line.replace(",", ".") for line in lines[: lines.index(",".join(header))]]
+    body = [".".join(header)]
+    for row in rows:
+        values = [v.replace(".", ",") for v in row[3:]]
+        body.append(".".join([*row[:2], row[2], *values]))
+    path = tmp_path / "dot.csv"
+    path.write_text("\n".join(meta + body) + "\n", encoding="utf-16")
+    pd.testing.assert_frame_equal(read_exo2_file(path), read_exo2_file(EXO2_CSV))
+
+
+@pytest.mark.parametrize(
+    ("created", "first_format"),
+    [
+        ("7/29/2020 1:36:35 PM", "%m/%d/%Y"),  # month above 12
+        ("21/10/2024 10:13:46", "%d/%m/%Y"),  # day above 12
+        ("9/2/2020 2:59:17 PM", "%m/%d/%Y"),  # ambiguous, 12-hour clock
+        ("06/08/2023 20:44:08", "%d/%m/%Y"),  # ambiguous, 24-hour clock
+        (None, "%m/%d/%Y"),
+    ],
+)
+def test_date_formats_from_file_created(created, first_format):
+    assert date_formats(created)[0] == first_format

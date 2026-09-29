@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from read_instruments.utils import Paths, StrPath, combine, resolve_files
+from read_instruments.utils import Paths, StrPath, combine, resolve_files, walk_files
 
 # Raw column position -> output name
 COLUMNS = {
@@ -21,10 +21,8 @@ COLUMNS = {
     17: "RD0_us",
     19: "RD1_us",
 }
-# LGR data folders have one of these in their name
-LGR_FOLDER_TAGS = ("YB", "AtmGHG", "atmGHG")
-# Plain-text data files, e.g. fgga_2020-07-16_f0000.txt
-TXT_NAME = re.compile(r".+_f\d{4}\.txt")
+# Data files, plain or zipped, e.g. fgga_2020-07-16_f0000.txt(.zip)
+FILE_NAME = re.compile(r".+_f\d{4}\.txt(\.zip)?")
 
 
 def read_lgr(paths: Paths, resample: str | None = "1min") -> pd.DataFrame:
@@ -33,8 +31,8 @@ def read_lgr(paths: Paths, resample: str | None = "1min") -> pd.DataFrame:
     Parameters
     ----------
     paths : str, os.PathLike or iterable of those
-        A campaign directory (see `find_lgr_files`), a single file, or a list
-        of files.
+        A directory searched recursively (see `find_lgr_files`), a single
+        file, or a list of files.
     resample : str or None
         Frequency to average to; None keeps the native resolution.
 
@@ -51,34 +49,18 @@ def read_lgr(paths: Paths, resample: str | None = "1min") -> pd.DataFrame:
 
 
 def find_lgr_files(directory: StrPath) -> list[Path]:
-    """List LGR files under a directory.
+    """List LGR data files anywhere below a directory.
 
-    Every folder whose name contains one of `LGR_FOLDER_TAGS` (at any depth,
-    including `directory` itself) is taken to hold one subfolder per date, e.g.
-    ``<station>/AtmGHG/2020-07-16/`` or ``AC_AtmGHG_20200716_20200722/2020-07-16/``.
-    Date folders hold zipped files and/or plain ``*_f0000.txt`` files; a plain
-    file is skipped when its zipped copy is also present.
+    Picks up non-empty files named like ``fgga_2020-07-16_f0000.txt``, plain or
+    zipped (``.txt.zip``). Folders whose name starts with ``_`` (e.g.
+    ``_superseded``) are skipped, and a plain file is skipped when its zipped
+    copy is also present.
     """
-    root = Path(directory)
-    lgr_dirs = [
-        d
-        for d in [root, *sorted(root.rglob("*"))]
-        if d.is_dir() and any(tag in d.name for tag in LGR_FOLDER_TAGS)
+    return [
+        f
+        for f in walk_files(directory)
+        if FILE_NAME.fullmatch(f.name) and not f.with_name(f.name + ".zip").exists()
     ]
-    if not lgr_dirs:
-        logging.warning("No YB or AtmGHG folder found in: %s", root)
-
-    files = []
-    for lgr_dir in lgr_dirs:
-        for date_dir in sorted(x for x in lgr_dir.iterdir() if x.is_dir()):
-            for f in sorted(date_dir.iterdir()):
-                if not f.is_file() or f.stat().st_size == 0:
-                    continue
-                if zipfile.is_zipfile(f):
-                    files.append(f)
-                elif TXT_NAME.fullmatch(f.name) and not f.with_name(f.name + ".zip").exists():
-                    files.append(f)
-    return files
 
 
 def read_lgr_file(path: StrPath) -> pd.DataFrame:

@@ -21,6 +21,22 @@ def detect_encoding(file_path: StrPath, sample_size: int = 10000) -> str | None:
     return result["encoding"]
 
 
+def walk_files(directory: StrPath) -> list[Path]:
+    """All non-empty files below a directory, sorted.
+
+    Folders whose name starts with ``_`` (e.g. ``_superseded``, holding earlier
+    copies of a file) are skipped.
+    """
+    root = Path(directory)
+    return [
+        f
+        for f in sorted(root.rglob("*"))
+        if f.is_file()
+        and not any(part.startswith("_") for part in f.relative_to(root).parts[:-1])
+        and f.stat().st_size > 0
+    ]
+
+
 def resolve_files(paths: Paths, find_files: Callable[[Path], list[Path]]) -> list[Path]:
     """Turn a directory, a single file, or a list of files into a list of files.
 
