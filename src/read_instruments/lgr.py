@@ -1,104 +1,121 @@
+"""Reader for LGR greenhouse gas analyser files."""
+
 import io
 import logging
-import os
+import re
 import zipfile
-import zipfile as zf
-from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 
+from read_instruments.utils import Paths, StrPath, combine, resolve_files
 
-def read_lgr(unzip_path):
-    """Reading LGR file.
+# Raw column position -> output name
+COLUMNS = {
+    0: "Datetime",
+    3: "H2O_ppm",
+    7: "CH4d_ppm",
+    9: "CO2d_ppm",
+    11: "GasP_torr",
+    13: "GasT_C",
+    17: "RD0_us",
+    19: "RD1_us",
+}
+# LGR data folders have one of these in their name
+LGR_FOLDER_TAGS = ("YB", "AtmGHG", "atmGHG")
+# Plain-text data files, e.g. fgga_2020-07-16_f0000.txt
+TXT_NAME = re.compile(r".+_f\d{4}\.txt")
+
+
+def read_lgr(paths: Paths, resample: str | None = "1min") -> pd.DataFrame:
+    """Read LGR data.
 
     Parameters
     ----------
-    unzip_path
+    paths : str, os.PathLike or iterable of those
+        A campaign directory (see `find_lgr_files`), a single file, or a list
+        of files.
+    resample : str or None
+        Frequency to average to; None keeps the native resolution.
 
+    Returns
+    -------
+    pandas.DataFrame
+        Indexed by UTC ``Datetime``; empty if no files were found.
     """
     logging.info("Reading LGR data")
+    files = resolve_files(paths, find_lgr_files)
+    if not files:
+        logging.warning("No LGR files found in: %s", paths)
+    return combine([read_lgr_file(f) for f in files], resample)
 
-    data = []
-    for alldata in os.listdir(unzip_path):
-        allfiles = os.path.join(unzip_path, alldata)
-        ## Searching for YB AtmGHG or atmGHG folder
-        lgrfolderdata = [
-            x
-            for x in os.listdir(allfiles)
-            if any(s in x for s in ("YB", "AtmGHG", "atmGHG"))
-        ]
-        try:
-            lgrfolderdata = lgrfolderdata[0]
-        except IndexError:
-            logging.warning("YB or GHG folder does not found in: %s", allfiles)
-            continue
 
-        lgrdatadate = os.path.join(allfiles, lgrfolderdata)
-        folderdates = os.listdir(lgrdatadate)
-        for date in sorted(folderdates):
-            datadate = os.path.join(lgrdatadate, date)
-            filedate = os.listdir(datadate)
-            for lgrfolderdate in filedate:
-                readfile = os.path.join(datadate, lgrfolderdate)
-                if zipfile.is_zipfile(readfile):
-                    ifoot = footer_pos(readfile)
-                else:
-                    ifoot = 0
-                    newfile = "_".join(["fgg", date, "f0000.txt"])
-                    readfile = os.path.join(datadate, newfile)
+def find_lgr_files(directory: StrPath) -> list[Path]:
+    """List LGR files under a directory.
 
-                if os.path.isfile(readfile) and os.path.getsize(readfile) > 0:
-                    logging.info("Reading file: %s", readfile)
-                    ## Reading column 0 is time, column 7 [CH4]d_ppm and column 9 [CO2]d_ppm
-                    rfile = pd.read_csv(
-                        readfile,
-                        sep=",",
-                        header=1,
-                        skipfooter=ifoot,
-                        skipinitialspace=True,
-                        parse_dates=[0],
-                        index_col=[0],
-                        date_format="%m/%d/%Y %H:%M:%S.%f",
-                        usecols=[0, 3, 7, 9, 11, 13, 17, 19],
-                        engine="python",
-                        names=[
-                            "Datetime",
-                            "H20_ppm",
-                            "CH4d_ppm",
-                            "CO2d_ppm",
-                            "GasP_torr",
-                            "GasT_C",
-                            "RD0_us",
-                            "RD1_us",
-                        ],
-                    )
-                    data.append(rfile)
-                else:
+    Every folder whose name contains one of `LGR_FOLDER_TAGS` (at any depth,
+    including `directory` itself) is taken to hold one subfolder per date, e.g.
+    ``<station>/AtmGHG/2020-07-16/`` or ``AC_AtmGHG_20200716_20200722/2020-07-16/``.
+    Date folders hold zipped files and/or plain ``*_f0000.txt`` files; a plain
+    file is skipped when its zipped copy is also present.
+    """
+    root = Path(directory)
+    lgr_dirs = [
+        d
+        for d in [root, *sorted(root.rglob("*"))]
+        if d.is_dir() and any(tag in d.name for tag in LGR_FOLDER_TAGS)
+    ]
+    if not lgr_dirs:
+        logging.warning("No YB or AtmGHG folder found in: %s", root)
+
+    files = []
+    for lgr_dir in lgr_dirs:
+        for date_dir in sorted(x for x in lgr_dir.iterdir() if x.is_dir()):
+            for f in sorted(date_dir.iterdir()):
+                if not f.is_file() or f.stat().st_size == 0:
                     continue
-    if data:
-        data = pd.concat(data)
-        data = data.sort_index()
-        data = data.resample("1min").mean()
-        return data
+                if zipfile.is_zipfile(f):
+                    files.append(f)
+                elif TXT_NAME.fullmatch(f.name) and not f.with_name(f.name + ".zip").exists():
+                    files.append(f)
+    return files
+
+
+def read_lgr_file(path: StrPath) -> pd.DataFrame:
+    """Read one LGR file (plain text or zipped) at native resolution."""
+    path = Path(path)
+    logging.info("Reading file: %s", path)
+    is_zip = zipfile.is_zipfile(path)
+    data = pd.read_csv(
+        path,
+        sep=",",
+        header=1,
+        skipfooter=footer_pos(path),
+        compression="zip" if is_zip else None,
+        skipinitialspace=True,
+        parse_dates=[0],
+        index_col=[0],
+        date_format="%m/%d/%Y %H:%M:%S.%f",
+        usecols=list(COLUMNS),
+        names=list(COLUMNS.values()),
+        engine="python",
+    )
+    data.index = pd.DatetimeIndex(data.index).tz_localize("UTC")
+    return data
+
+
+def footer_pos(lgr_file: StrPath) -> int:
+    """Number of lines in the footer (starting with ``-----B``) of an LGR file.
+
+    Closed daily files end with a PGP signature block; files still being
+    written, or older plain-text files, may have none.
+    """
+    lgr_file = Path(lgr_file)
+    if zipfile.is_zipfile(lgr_file):
+        with zipfile.ZipFile(lgr_file) as zipf:
+            content = zipf.read(zipf.namelist()[0])
     else:
-        return pd.DataFrame([])
-
-
-def footer_pos(LGRfile):
-    """find footer position"""
-
-    zipf = zipfile.ZipFile(LGRfile)
-    f = zipf.namelist()[0]
-    content = io.BytesIO(zipf.read(f))
-    i = 0
-    foot = False
-    for line in content.readlines():  # zipf.read(f): #zipf.read(f):
-        if line.startswith(b"-----B"):
-            ib = i
-            foot = True
-        i += 1
-    if foot:
-        ifooter = i - ib
-    else:
-        ifooter = 0
-    return ifooter
+        content = lgr_file.read_bytes()
+    lines = io.BytesIO(content).readlines()
+    starts = [i for i, line in enumerate(lines) if line.startswith(b"-----B")]
+    return len(lines) - starts[-1] if starts else 0
