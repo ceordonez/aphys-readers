@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Purpose
 
-Small, reusable Python routines for reading raw data files from instruments used by the Aquatic Physics (AP) group at the University of Geneva. Target instruments: Seabird, EXO2, LGR, and Picarro. Code lives in the `src/read_instruments/` package (built with `uv_build`), one module per instrument. Only the LGR reader exists so far (`lgr.py`); the others are still to be written. Public readers are re-exported from `__init__.py`, so consumers write `from read_instruments import read_lgr`.
+Small, reusable Python routines for reading raw data files from instruments used by the Aquatic Physics (AP) group at the University of Geneva. Target instruments: Seabird, EXO2, LGR, and Picarro. Code lives in the `src/read_instruments/` package (built with `uv_build`), one module per instrument. LGR (`lgr.py`) and EXO2 (`exo2.py`) readers exist; Seabird and Picarro are still to be written. Public readers are re-exported from `__init__.py`, so consumers write `from read_instruments import read_lgr`.
 
 The library is meant to be consumed from other projects via an editable install:
 
@@ -32,7 +32,7 @@ New instrument readers should follow the pattern set by `read_lgr`:
 - One module per instrument in `src/read_instruments/`, exposing `read_<instrument>(path)` (add it to `__init__.py` and `__all__`), returning a `pandas.DataFrame` indexed by a `Datetime` column, with columns renamed to `<Quantity>_<unit>` (e.g. `CH4d_ppm`, `GasT_C`).
 - Return an empty `pd.DataFrame([])` when nothing is found rather than raising.
 - Report progress and missing data through `logging` (`info` for files read, `warning` for skipped folders), not `print`.
-- `detect_encoding()` (chardet) is available for instruments whose files have an unknown text encoding.
+- Shared helpers go in `utils.py`; `detect_encoding()` (chardet) is available for instruments whose files have an unknown text encoding.
 
 ### LGR specifics
 
