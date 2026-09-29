@@ -6,8 +6,8 @@ import pandas as pd
 from read_instruments.utils import detect_encoding
 
 
-def read_exo(path_unzipdata):
-    """TODO: Docstring for read_exo.
+def read_exo2(path_unzipdata):
+    """TODO: Docstring for read_exo2.
 
     Parameters
     ----------
