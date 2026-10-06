@@ -1,6 +1,7 @@
 """Tests on the real instrument files in tests/data.
 
-Formats not present there (plain-text LGR, Excel and day-first EXO2 exports)
+Formats not present there (plain-text LGR, Excel and day-first EXO2 exports,
+other NMEA talkers)
 are derived from the real files in a temporary directory.
 """
 
@@ -13,9 +14,13 @@ import pytest
 
 from read_instruments import (
     find_exo2_files,
+    find_gps_files,
     find_lgr_files,
+    merge_nearest,
     read_exo2,
     read_exo2_file,
+    read_gps,
+    read_gps_file,
     read_lgr,
     read_lgr_file,
 )
@@ -26,6 +31,9 @@ LGR_WEEK1 = DATA / "lgr/AC_AtmGHG_20200716_20200722"
 LGR_ZIP = LGR_WEEK1 / "2020-07-16/fgga_2020-07-16_f0000.txt.zip"
 EXO2_DIR = DATA / "exo2"
 EXO2_CSV = EXO2_DIR / "EXO_SD_15L103185_072320_072732.csv"
+GPS_DIR = DATA / "gps"
+GPS_GPX = GPS_DIR / "etrex/Track_16-JAN-25 180154.gpx"
+GPS_NMEA = GPS_DIR / "adcp/T20_0/T20_0_000_26-02-05_105121_GPS.TXT"
 # Maur_..._143037.csv holds the rows of its _1 and _2 parts
 MAUR_PARTS = [EXO2_DIR / f"Maur_12M101161_060420_143037{s}.csv" for s in ("", "_1", "_2")]
 
@@ -44,6 +52,7 @@ EXO2_COLUMNS = [
     "Temp_C",
     "Battery_V",
 ]
+GPS_COLUMNS = ["Lat_deg", "Lon_deg", "Alt_m"]
 
 
 def utc(timestamp):
@@ -286,3 +295,132 @@ def test_read_exo2_file_dot_separator(tmp_path):
 )
 def test_date_formats_from_file_created(created, first_format):
     assert date_formats(created)[0] == first_format
+
+
+# GPS
+
+
+def test_find_gps_files():
+    assert find_gps_files(GPS_DIR) == [
+        GPS_NMEA,
+        GPS_GPX,
+        GPS_DIR / "etrex/Waypoints_13-JAN-25.gpx",
+    ]
+
+
+def test_read_gps_file_gpx():
+    data = read_gps_file(GPS_GPX)
+    assert len(data) == 100
+    assert list(data.columns) == GPS_COLUMNS
+    assert data.index.name == "Datetime"
+    assert data.index[0] == utc("2025-01-14 02:48:36")
+    assert data.iloc[0].tolist() == [13.2954753935, -14.2065412458, 29.94]
+
+
+def test_read_gps_file_gpx_corrupted_time(tmp_path):
+    # Some OpenCPN exports have binary garbage in a <time>, making invalid XML
+    content = GPS_GPX.read_bytes()
+    first_time = b"<time>2025-01-14T02:48:36Z</time>"
+    assert first_time in content
+    path = tmp_path / "corrupted.gpx"
+    path.write_bytes(content.replace(first_time, b"<time>\x80\xef&#16;\tP</time>"))
+    data = read_gps_file(path)
+    assert len(data) == 99
+    assert data.index[0] == utc("2025-01-14 02:48:46")
+    assert data.iloc[0].tolist() == read_gps_file(GPS_GPX).iloc[1].tolist()
+
+@pytest.mark.parametrize("corrupted", [False, True])
+def test_read_gps_file_gpx_skips_ais_tracks(tmp_path, corrupted):
+    # OpenCPN exports can hold tracks of other ships recorded from AIS
+    content = GPS_GPX.read_bytes()
+    start, end = content.index(b"<trk>"), content.index(b"</trk>") + len(b"</trk>")
+    track = content[start:end]
+    ais = track.replace(b"<trk>", b"<trk>\n<name>AIS  (331394000) 2021-08-18 17:04:32</name>", 1)
+    if corrupted:
+        ais = ais.replace(b"<time>2025-01-14T02:48:36Z</time>", b"<time>\x80</time>")
+    path = tmp_path / "ais.gpx"
+    path.write_bytes(content[:end] + ais + content[end:])
+    assert read_gps_file(path).equals(read_gps_file(GPS_GPX))
+
+
+def test_read_gps_file_gpx_waypoints_only():
+    assert read_gps_file(GPS_DIR / "etrex/Waypoints_13-JAN-25.gpx").empty
+
+
+def test_read_gps_file_nmea():
+    data = read_gps_file(GPS_NMEA)
+    assert len(data) == 100
+    assert list(data.columns) == GPS_COLUMNS
+    assert data.index[0] == utc("2026-02-05 10:52:28")
+    assert data.index[-1] == utc("2026-02-05 10:54:07")
+    # 1318.8548,N,01629.4987,W
+    assert data["Lat_deg"].iloc[0] == pytest.approx(13 + 18.8548 / 60)
+    assert data["Lon_deg"].iloc[0] == pytest.approx(-(16 + 29.4987 / 60))
+    assert data["Alt_m"].iloc[0] == 9.5
+
+
+def test_read_gps_file_nmea_other_talker_and_no_fix(tmp_path):
+    lines = GPS_NMEA.read_text().splitlines()[:18]
+    lines = [line.replace("$GP", "$GN") for line in lines]
+    # Second GGA without a fix (quality 0)
+    lines[11] = lines[11].replace(",W,1,", ",W,0,")
+    path = tmp_path / "GN_GPS.TXT"
+    path.write_text("\n".join(lines))
+    data = read_gps_file(path)
+    assert data.index.tolist() == [utc("2026-02-05 10:52:28")]
+
+
+def test_read_gps_directory():
+    data = read_gps(GPS_DIR, resample=None)
+    assert len(data) == 200
+    assert data.index.is_monotonic_increasing
+    # 10:52:28 to 10:54:07
+    assert len(read_gps(GPS_DIR / "adcp")) == 3
+
+
+def test_read_gps_empty_directory(tmp_path):
+    assert read_gps(tmp_path).empty
+
+
+# Merging
+
+
+def lgr_native_and_minutes():
+    native = read_lgr_file(LGR_ZIP)
+    minutes = read_lgr(LGR_ZIP)[["CH4d_ppm"]].rename(columns={"CH4d_ppm": "CH4_1min"})
+    return native, minutes
+
+
+def test_merge_nearest_different_resolutions():
+    native, minutes = lgr_native_and_minutes()
+    merged = merge_nearest(native, minutes)
+    assert merged.index.equals(native.index)
+    assert list(merged.columns) == [*LGR_COLUMNS, "CH4_1min"]
+    # 06:56:34 is nearest to the 06:57 bin (26 s away)
+    assert merged.index[0] == utc("2020-07-16 06:56:34.139")
+    assert merged["CH4_1min"].iloc[0] == minutes.loc[utc("2020-07-16 06:57"), "CH4_1min"]
+    assert merged["CH4_1min"].notna().all()
+
+
+def test_merge_nearest_skips_empty_bins():
+    native, minutes = lgr_native_and_minutes()
+    minutes.loc[utc("2020-07-16 06:57")] = float("nan")
+    merged = merge_nearest(native, minutes)
+    # The empty 06:57 bin is ignored; the 06:56 bin (34 s away) is used
+    assert merged["CH4_1min"].iloc[0] == minutes.loc[utc("2020-07-16 06:56"), "CH4_1min"]
+
+
+@pytest.mark.parametrize("tolerance", ["10s", pd.Timedelta("10s")])
+def test_merge_nearest_tolerance(tolerance):
+    native, minutes = lgr_native_and_minutes()
+    merged = merge_nearest(native, minutes, tolerance)
+    assert merged["CH4_1min"].notna().sum() == 589
+    assert merge_nearest(native, minutes, None)["CH4_1min"].notna().all()
+
+
+def test_merge_nearest_different_time_units():
+    native, minutes = lgr_native_and_minutes()
+    minutes.index = minutes.index.as_unit("ns")
+    merged = merge_nearest(native, minutes)
+    assert merged.index.equals(native.index)
+    assert merged["CH4_1min"].notna().all()

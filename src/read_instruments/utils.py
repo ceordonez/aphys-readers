@@ -81,3 +81,43 @@ def combine(frames: list[pd.DataFrame], resample: str | None = "1min") -> pd.Dat
     if resample:
         data = data.resample(resample).mean()
     return data
+
+
+def merge_nearest(
+    left: pd.DataFrame,
+    right: pd.DataFrame,
+    tolerance: str | pd.Timedelta | None = "1min",
+) -> pd.DataFrame:
+    """Add to each row of `left` the nearest-in-time row of `right`.
+
+    Works for instruments with different sampling (e.g. 1 Hz LGR and sparse
+    GPS fixes), so data need not be resampled to a common grid first.
+
+    Parameters
+    ----------
+    left, right : pandas.DataFrame
+        Reader outputs, indexed by a UTC ``Datetime`` index. Columns present
+        in both get ``_x`` / ``_y`` suffixes. All-NaN rows of `right` (empty
+        bins after resampling) are ignored.
+    tolerance : str, pandas.Timedelta or None
+        Largest time gap to match across (e.g. ``"1min"``); rows of `left`
+        with no `right` row that close get NaN. None matches any gap.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per row of `left`, same index.
+    """
+    left = left.sort_index()
+    # Resampled frames have all-NaN rows for empty bins; never match those
+    right = right.dropna(how="all").sort_index()
+    # merge_asof needs both indexes in the same time unit (us vs ns)
+    right.index = pd.DatetimeIndex(right.index).as_unit(pd.DatetimeIndex(left.index).unit)
+    return pd.merge_asof(
+        left,
+        right,
+        left_index=True,
+        right_index=True,
+        direction="nearest",
+        tolerance=pd.Timedelta(tolerance) if tolerance is not None else None,
+    )

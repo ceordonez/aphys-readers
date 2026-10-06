@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Purpose
 
-Small, reusable Python routines for reading raw data files from instruments used by the Aquatic Physics (AP) group at the University of Geneva. Target instruments: Seabird, EXO2, LGR, and Picarro. Code lives in the `src/read_instruments/` package (built with `uv_build`), one module per instrument. LGR (`lgr.py`) and EXO2 (`exo2.py`) readers exist; Seabird and Picarro are still to be written. Public readers are re-exported from `__init__.py`, so consumers write `from read_instruments import read_lgr`.
+Small, reusable Python routines for reading raw data files from instruments used by the Aquatic Physics (AP) group at the University of Geneva. Target instruments: Seabird, EXO2, LGR, and Picarro. Code lives in the `src/read_instruments/` package (built with `uv_build`), one module per instrument. LGR (`lgr.py`), EXO2 (`exo2.py`) and GPS (`gps.py`) readers exist; Seabird and Picarro are still to be written. Public readers are re-exported from `__init__.py`, so consumers write `from read_instruments import read_lgr`.
 
 The library is meant to be consumed from other projects via an editable install:
 
@@ -38,14 +38,16 @@ Every instrument module in `src/read_instruments/` exposes the same three functi
 Output contract, which lets data from different instruments be merged directly:
 
 - Index is a tz-aware UTC `DatetimeIndex` named `Datetime`. All instruments log in UTC, so file readers `tz_localize("UTC")` rather than convert.
-- Columns are renamed to `<Quantity>_<unit>` (e.g. `CH4d_ppm`, `Temp_C`) via a per-module mapping (`COLUMNS` in `lgr.py`, `COLUMN_NAMES` in `exo2.py`) and are numeric.
+- Columns are renamed to `<Quantity>_<unit>` (e.g. `CH4d_ppm`, `Temp_C`) via a per-module mapping (`COLUMNS` in `lgr.py` and `gps.py`, `COLUMN_NAMES` in `exo2.py`) and are numeric.
 - Progress and skipped folders go through `logging`, not `print`.
 
-Shared helpers (`walk_files`, `resolve_files`, `combine`, `detect_encoding`) and the path type aliases used in annotations (`StrPath` for one path, `Paths` for one or many) live in `utils.py`. All functions are annotated and the package ships `py.typed`.
+Instruments at different resolutions are merged with `utils.merge_nearest(left, right, tolerance="1min")`, a `merge_asof` on the index (direction nearest) that accepts a string tolerance, aligns the right index's time unit (`us`/`ns`) to the left's, and ignores all-NaN rows of `right` (empty resample bins) so they never shadow real data.
+
+Shared helpers (`walk_files`, `resolve_files`, `combine`, `merge_nearest`, `detect_encoding`) and the path type aliases used in annotations (`StrPath` for one path, `Paths` for one or many) live in `utils.py`. All functions are annotated and the package ships `py.typed`.
 
 ## Tests
 
-`tests/data` holds real, trimmed instrument output: two weeks of zipped LGR files (`lgr/<week>/<date>/`) and seven UTF-16 KOR CSV exports from two EXO2 sondes. Tests assert exact row counts and values from these files. Formats not represented there (plain-text LGR; Excel, newer-KOR, multi-section and dot-separated EXO2 exports) are built from the real files inside `tmp_path`, so keep that approach rather than adding synthetic fixtures.
+`tests/data` holds real, trimmed instrument output: two weeks of zipped LGR files (`lgr/<week>/<date>/`), seven UTF-16 KOR CSV exports from two EXO2 sondes, and GPS files (`gps/`: a trimmed eTrex 10 GPX track, a waypoints-only GPX, and 100 s of a WinRiver II `_GPS.TXT`). Tests assert exact row counts and values from these files. Formats not represented there (plain-text LGR; Excel, newer-KOR, multi-section and dot-separated EXO2 exports) are built from the real files inside `tmp_path`, so keep that approach rather than adding synthetic fixtures.
 
 ## Instrument specifics
 
@@ -57,3 +59,9 @@ Shared helpers (`walk_files`, `resolve_files`, `combine`, `detect_encoding`) and
 - `read_kor_csv` reads the text itself (encoding via chardet; real files are UTF-16 or UTF-8), takes the separator from the `sep=` first line, and parses each section separately: backup files concatenate several exports, each with summary lines and its own header/columns; a section runs from a header row to the next blank line. Values are read as text and `to_number` treats any comma as a decimal comma (KOR writes no thousands separators).
 - Dates: the header always says MM/DD/YYYY, but dates follow the exporting locale. `date_formats` orders the formats from the `FILE CREATED` stamp (a field >12 decides; otherwise AM/PM means month-first, 24-hour clock day-first). This matters for short files where every day is <= 12.
 - One real export used `sep=.`, which splits the `Time (Fract. Sec)` header and its `0.0` values into two aligned columns; both halves are in `DROP_COLUMNS`.
+
+**GPS** (`gps.py`): `find_gps_files` walks recursively for `.gpx` files and WinRiver II NMEA logs (`*_GPS.TXT`, written next to ADCP `.PD0` files). Output columns are `Lat_deg`, `Lon_deg`, `Alt_m`, matching the EXO2 GPS columns.
+
+- GPX is parsed with the stdlib `ElementTree`, matching tags without their namespace (GPX 1.0 and 1.1 differ). Only track points are read; waypoint-only files give an empty frame, which `read_gps` drops before `combine`. Tracks named `AIS ...` are skipped (`is_ais`): OpenCPN records other ships' AIS tracks alongside the own track (e.g. `2021/20210905_20210911_userobjects.gpx`), and merging them would put the ship tens of km off. The lenient scanner skips them too, splitting the text on `<trk>` (`TRK`, `TRK_NAME`).
+- Some OpenCPN exports (`AC_GPS_20200813_20200827.gpx` and `AC_GPS_20200828_20200902.gpx` in `2020_ArcticChange/data/raw/gps/2020/`) have binary garbage in a few `<time>` elements, which is invalid XML. On `ParseError`, `read_gpx` falls back to regex scanning (`TRKPT`, `COORD`, `CHILD`), and `to_frame` drops points whose time does not parse.
+- NMEA: the date comes from the latest `RMC` sentence; time, position and altitude from `GGA` with fix quality >= 1. Any talker (`GP`, `GN`, ...) is accepted, and timestamps repeated within a file keep the first fix.
