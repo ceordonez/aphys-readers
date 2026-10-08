@@ -1,0 +1,746 @@
+<?xml version="1.0" ?>
+<Body_xle>
+    <File_info>
+        <Company></Company>
+        <LICENCE></LICENCE>
+        <Date>2019/06/04</Date>
+        <Time>18:05:01</Time>
+        <FileName></FileName>
+        <Created_by>Version 4.3.3</Created_by>
+    </File_info>
+    <Instrument_info>
+        <Instrument_type>LT_EDGE</Instrument_type>
+        <Model_number>M1.5</Model_number>
+        <Instrument_state>Stopped</Instrument_state>
+        <Serial_number>2085521</Serial_number>
+        <Battery_level>100</Battery_level>
+        <Channel>2</Channel>
+        <Firmware>3.004</Firmware>
+    </Instrument_info>
+    <Instrument_info_data_header>
+        <Project_ID></Project_ID>
+        <Location></Location>
+        <Latitude>0.000</Latitude>
+        <Longtitude>0.000</Longtitude>
+        <Sample_rate>30000</Sample_rate>
+        <Sample_mode>0</Sample_mode>
+        <Event_ch>239</Event_ch>
+        <Event_threshold>0.000000</Event_threshold>
+        <Schedule />
+        <Start_time>2019/04/10 20:18:13</Start_time>
+        <Stop_time>2019/04/10 20:13:59</Stop_time>
+        <Num_log>15813</Num_log>
+    </Instrument_info_data_header>
+    <Ch1_data_header>
+        <Identification>LEVEL</Identification>
+        <Unit>kPa</Unit>
+        <Parameters />
+    </Ch1_data_header>
+    <Ch2_data_header>
+        <Identification>TEMPERATURE</Identification>
+        <Unit>°C</Unit>
+        <Parameters />
+    </Ch2_data_header>
+    <Data>
+        <Log id="1">
+            <Date>2019/04/10</Date>
+            <Time>20:18:13</Time>
+            <ms>0</ms>
+            <ch1>94.0264</ch1>
+            <ch2>14.471</ch2>
+        </Log>
+        <Log id="2">
+            <Date>2019/04/10</Date>
+            <Time>20:23:13</Time>
+            <ms>0</ms>
+            <ch1>94.0757</ch1>
+            <ch2>16.198</ch2>
+        </Log>
+        <Log id="3">
+            <Date>2019/04/10</Date>
+            <Time>20:28:13</Time>
+            <ms>0</ms>
+            <ch1>94.0818</ch1>
+            <ch2>15.005</ch2>
+        </Log>
+        <Log id="4">
+            <Date>2019/04/10</Date>
+            <Time>20:33:13</Time>
+            <ms>0</ms>
+            <ch1>94.0867</ch1>
+            <ch2>14.315</ch2>
+        </Log>
+        <Log id="5">
+            <Date>2019/04/10</Date>
+            <Time>20:38:13</Time>
+            <ms>0</ms>
+            <ch1>94.0889</ch1>
+            <ch2>13.891</ch2>
+        </Log>
+        <Log id="6">
+            <Date>2019/04/10</Date>
+            <Time>20:43:13</Time>
+            <ms>0</ms>
+            <ch1>94.0889</ch1>
+            <ch2>13.606</ch2>
+        </Log>
+        <Log id="7">
+            <Date>2019/04/10</Date>
+            <Time>20:48:13</Time>
+            <ms>0</ms>
+            <ch1>94.0941</ch1>
+            <ch2>13.400</ch2>
+        </Log>
+        <Log id="8">
+            <Date>2019/04/10</Date>
+            <Time>20:53:13</Time>
+            <ms>0</ms>
+            <ch1>94.0975</ch1>
+            <ch2>13.243</ch2>
+        </Log>
+        <Log id="9">
+            <Date>2019/04/10</Date>
+            <Time>20:58:13</Time>
+            <ms>0</ms>
+            <ch1>94.1012</ch1>
+            <ch2>13.118</ch2>
+        </Log>
+        <Log id="10">
+            <Date>2019/04/10</Date>
+            <Time>21:03:13</Time>
+            <ms>0</ms>
+            <ch1>94.1076</ch1>
+            <ch2>13.016</ch2>
+        </Log>
+        <Log id="11">
+            <Date>2019/04/10</Date>
+            <Time>21:08:13</Time>
+            <ms>0</ms>
+            <ch1>94.1113</ch1>
+            <ch2>12.929</ch2>
+        </Log>
+        <Log id="12">
+            <Date>2019/04/10</Date>
+            <Time>21:13:13</Time>
+            <ms>0</ms>
+            <ch1>94.1162</ch1>
+            <ch2>12.855</ch2>
+        </Log>
+        <Log id="13">
+            <Date>2019/04/10</Date>
+            <Time>21:18:13</Time>
+            <ms>0</ms>
+            <ch1>94.1259</ch1>
+            <ch2>12.791</ch2>
+        </Log>
+        <Log id="14">
+            <Date>2019/04/10</Date>
+            <Time>21:23:13</Time>
+            <ms>0</ms>
+            <ch1>94.1308</ch1>
+            <ch2>12.734</ch2>
+        </Log>
+        <Log id="15">
+            <Date>2019/04/10</Date>
+            <Time>21:28:13</Time>
+            <ms>0</ms>
+            <ch1>94.1342</ch1>
+            <ch2>12.682</ch2>
+        </Log>
+        <Log id="16">
+            <Date>2019/04/10</Date>
+            <Time>21:33:13</Time>
+            <ms>0</ms>
+            <ch1>94.1316</ch1>
+            <ch2>12.636</ch2>
+        </Log>
+        <Log id="17">
+            <Date>2019/04/10</Date>
+            <Time>21:38:13</Time>
+            <ms>0</ms>
+            <ch1>94.1359</ch1>
+            <ch2>12.594</ch2>
+        </Log>
+        <Log id="18">
+            <Date>2019/04/10</Date>
+            <Time>21:43:13</Time>
+            <ms>0</ms>
+            <ch1>94.1417</ch1>
+            <ch2>12.554</ch2>
+        </Log>
+        <Log id="19">
+            <Date>2019/04/10</Date>
+            <Time>21:48:13</Time>
+            <ms>0</ms>
+            <ch1>94.1444</ch1>
+            <ch2>12.518</ch2>
+        </Log>
+        <Log id="20">
+            <Date>2019/04/10</Date>
+            <Time>21:53:13</Time>
+            <ms>0</ms>
+            <ch1>94.1465</ch1>
+            <ch2>12.484</ch2>
+        </Log>
+        <Log id="21">
+            <Date>2019/04/10</Date>
+            <Time>21:58:13</Time>
+            <ms>0</ms>
+            <ch1>94.1499</ch1>
+            <ch2>12.452</ch2>
+        </Log>
+        <Log id="22">
+            <Date>2019/04/10</Date>
+            <Time>22:03:13</Time>
+            <ms>0</ms>
+            <ch1>94.1495</ch1>
+            <ch2>12.422</ch2>
+        </Log>
+        <Log id="23">
+            <Date>2019/04/10</Date>
+            <Time>22:08:13</Time>
+            <ms>0</ms>
+            <ch1>94.1499</ch1>
+            <ch2>12.393</ch2>
+        </Log>
+        <Log id="24">
+            <Date>2019/04/10</Date>
+            <Time>22:13:13</Time>
+            <ms>0</ms>
+            <ch1>94.1531</ch1>
+            <ch2>12.365</ch2>
+        </Log>
+        <Log id="25">
+            <Date>2019/04/10</Date>
+            <Time>22:18:13</Time>
+            <ms>0</ms>
+            <ch1>94.1493</ch1>
+            <ch2>12.338</ch2>
+        </Log>
+        <Log id="26">
+            <Date>2019/04/10</Date>
+            <Time>22:23:13</Time>
+            <ms>0</ms>
+            <ch1>94.1530</ch1>
+            <ch2>12.312</ch2>
+        </Log>
+        <Log id="27">
+            <Date>2019/04/10</Date>
+            <Time>22:28:13</Time>
+            <ms>0</ms>
+            <ch1>94.1528</ch1>
+            <ch2>12.286</ch2>
+        </Log>
+        <Log id="28">
+            <Date>2019/04/10</Date>
+            <Time>22:33:13</Time>
+            <ms>0</ms>
+            <ch1>94.1510</ch1>
+            <ch2>12.262</ch2>
+        </Log>
+        <Log id="29">
+            <Date>2019/04/10</Date>
+            <Time>22:38:13</Time>
+            <ms>0</ms>
+            <ch1>94.1520</ch1>
+            <ch2>12.237</ch2>
+        </Log>
+        <Log id="30">
+            <Date>2019/04/10</Date>
+            <Time>22:43:13</Time>
+            <ms>0</ms>
+            <ch1>94.1492</ch1>
+            <ch2>12.213</ch2>
+        </Log>
+        <Log id="31">
+            <Date>2019/04/10</Date>
+            <Time>22:48:13</Time>
+            <ms>0</ms>
+            <ch1>94.1545</ch1>
+            <ch2>12.190</ch2>
+        </Log>
+        <Log id="32">
+            <Date>2019/04/10</Date>
+            <Time>22:53:13</Time>
+            <ms>0</ms>
+            <ch1>94.1563</ch1>
+            <ch2>12.167</ch2>
+        </Log>
+        <Log id="33">
+            <Date>2019/04/10</Date>
+            <Time>22:58:13</Time>
+            <ms>0</ms>
+            <ch1>94.1572</ch1>
+            <ch2>12.144</ch2>
+        </Log>
+        <Log id="34">
+            <Date>2019/04/10</Date>
+            <Time>23:03:13</Time>
+            <ms>0</ms>
+            <ch1>94.1565</ch1>
+            <ch2>12.122</ch2>
+        </Log>
+        <Log id="35">
+            <Date>2019/04/10</Date>
+            <Time>23:08:13</Time>
+            <ms>0</ms>
+            <ch1>94.1554</ch1>
+            <ch2>12.099</ch2>
+        </Log>
+        <Log id="36">
+            <Date>2019/04/10</Date>
+            <Time>23:13:13</Time>
+            <ms>0</ms>
+            <ch1>94.1488</ch1>
+            <ch2>12.077</ch2>
+        </Log>
+        <Log id="37">
+            <Date>2019/04/10</Date>
+            <Time>23:18:13</Time>
+            <ms>0</ms>
+            <ch1>94.1483</ch1>
+            <ch2>12.055</ch2>
+        </Log>
+        <Log id="38">
+            <Date>2019/04/10</Date>
+            <Time>23:23:13</Time>
+            <ms>0</ms>
+            <ch1>94.1479</ch1>
+            <ch2>12.034</ch2>
+        </Log>
+        <Log id="39">
+            <Date>2019/04/10</Date>
+            <Time>23:28:13</Time>
+            <ms>0</ms>
+            <ch1>94.1495</ch1>
+            <ch2>12.012</ch2>
+        </Log>
+        <Log id="40">
+            <Date>2019/04/10</Date>
+            <Time>23:33:13</Time>
+            <ms>0</ms>
+            <ch1>94.1516</ch1>
+            <ch2>11.991</ch2>
+        </Log>
+        <Log id="41">
+            <Date>2019/04/10</Date>
+            <Time>23:38:13</Time>
+            <ms>0</ms>
+            <ch1>94.1503</ch1>
+            <ch2>11.970</ch2>
+        </Log>
+        <Log id="42">
+            <Date>2019/04/10</Date>
+            <Time>23:43:13</Time>
+            <ms>0</ms>
+            <ch1>94.1505</ch1>
+            <ch2>11.948</ch2>
+        </Log>
+        <Log id="43">
+            <Date>2019/04/10</Date>
+            <Time>23:48:13</Time>
+            <ms>0</ms>
+            <ch1>94.1559</ch1>
+            <ch2>11.927</ch2>
+        </Log>
+        <Log id="44">
+            <Date>2019/04/10</Date>
+            <Time>23:53:13</Time>
+            <ms>0</ms>
+            <ch1>94.1552</ch1>
+            <ch2>11.906</ch2>
+        </Log>
+        <Log id="45">
+            <Date>2019/04/10</Date>
+            <Time>23:58:13</Time>
+            <ms>0</ms>
+            <ch1>94.1562</ch1>
+            <ch2>11.886</ch2>
+        </Log>
+        <Log id="46">
+            <Date>2019/04/11</Date>
+            <Time>00:03:13</Time>
+            <ms>0</ms>
+            <ch1>94.1541</ch1>
+            <ch2>11.866</ch2>
+        </Log>
+        <Log id="47">
+            <Date>2019/04/11</Date>
+            <Time>00:08:13</Time>
+            <ms>0</ms>
+            <ch1>94.1591</ch1>
+            <ch2>11.846</ch2>
+        </Log>
+        <Log id="48">
+            <Date>2019/04/11</Date>
+            <Time>00:13:13</Time>
+            <ms>0</ms>
+            <ch1>94.1557</ch1>
+            <ch2>11.825</ch2>
+        </Log>
+        <Log id="49">
+            <Date>2019/04/11</Date>
+            <Time>00:18:13</Time>
+            <ms>0</ms>
+            <ch1>94.1558</ch1>
+            <ch2>11.805</ch2>
+        </Log>
+        <Log id="50">
+            <Date>2019/04/11</Date>
+            <Time>00:23:13</Time>
+            <ms>0</ms>
+            <ch1>94.1555</ch1>
+            <ch2>11.785</ch2>
+        </Log>
+        <Log id="51">
+            <Date>2019/04/11</Date>
+            <Time>00:28:13</Time>
+            <ms>0</ms>
+            <ch1>94.1583</ch1>
+            <ch2>11.766</ch2>
+        </Log>
+        <Log id="52">
+            <Date>2019/04/11</Date>
+            <Time>00:33:13</Time>
+            <ms>0</ms>
+            <ch1>94.1568</ch1>
+            <ch2>11.746</ch2>
+        </Log>
+        <Log id="53">
+            <Date>2019/04/11</Date>
+            <Time>00:38:13</Time>
+            <ms>0</ms>
+            <ch1>94.1601</ch1>
+            <ch2>11.727</ch2>
+        </Log>
+        <Log id="54">
+            <Date>2019/04/11</Date>
+            <Time>00:43:13</Time>
+            <ms>0</ms>
+            <ch1>94.1587</ch1>
+            <ch2>11.707</ch2>
+        </Log>
+        <Log id="55">
+            <Date>2019/04/11</Date>
+            <Time>00:48:13</Time>
+            <ms>0</ms>
+            <ch1>94.1538</ch1>
+            <ch2>11.688</ch2>
+        </Log>
+        <Log id="56">
+            <Date>2019/04/11</Date>
+            <Time>00:53:13</Time>
+            <ms>0</ms>
+            <ch1>94.1565</ch1>
+            <ch2>11.669</ch2>
+        </Log>
+        <Log id="57">
+            <Date>2019/04/11</Date>
+            <Time>00:58:13</Time>
+            <ms>0</ms>
+            <ch1>94.1574</ch1>
+            <ch2>11.650</ch2>
+        </Log>
+        <Log id="58">
+            <Date>2019/04/11</Date>
+            <Time>01:03:13</Time>
+            <ms>0</ms>
+            <ch1>94.1581</ch1>
+            <ch2>11.630</ch2>
+        </Log>
+        <Log id="59">
+            <Date>2019/04/11</Date>
+            <Time>01:08:13</Time>
+            <ms>0</ms>
+            <ch1>94.1594</ch1>
+            <ch2>11.611</ch2>
+        </Log>
+        <Log id="60">
+            <Date>2019/04/11</Date>
+            <Time>01:13:13</Time>
+            <ms>0</ms>
+            <ch1>94.1544</ch1>
+            <ch2>11.592</ch2>
+        </Log>
+        <Log id="61">
+            <Date>2019/04/11</Date>
+            <Time>01:18:13</Time>
+            <ms>0</ms>
+            <ch1>94.1569</ch1>
+            <ch2>11.572</ch2>
+        </Log>
+        <Log id="62">
+            <Date>2019/04/11</Date>
+            <Time>01:23:13</Time>
+            <ms>0</ms>
+            <ch1>94.1561</ch1>
+            <ch2>11.552</ch2>
+        </Log>
+        <Log id="63">
+            <Date>2019/04/11</Date>
+            <Time>01:28:13</Time>
+            <ms>0</ms>
+            <ch1>94.1590</ch1>
+            <ch2>11.532</ch2>
+        </Log>
+        <Log id="64">
+            <Date>2019/04/11</Date>
+            <Time>01:33:13</Time>
+            <ms>0</ms>
+            <ch1>94.1673</ch1>
+            <ch2>11.512</ch2>
+        </Log>
+        <Log id="65">
+            <Date>2019/04/11</Date>
+            <Time>01:38:13</Time>
+            <ms>0</ms>
+            <ch1>94.1677</ch1>
+            <ch2>11.491</ch2>
+        </Log>
+        <Log id="66">
+            <Date>2019/04/11</Date>
+            <Time>01:43:13</Time>
+            <ms>0</ms>
+            <ch1>94.1654</ch1>
+            <ch2>11.470</ch2>
+        </Log>
+        <Log id="67">
+            <Date>2019/04/11</Date>
+            <Time>01:48:13</Time>
+            <ms>0</ms>
+            <ch1>94.1713</ch1>
+            <ch2>11.449</ch2>
+        </Log>
+        <Log id="68">
+            <Date>2019/04/11</Date>
+            <Time>01:53:13</Time>
+            <ms>0</ms>
+            <ch1>94.1682</ch1>
+            <ch2>11.427</ch2>
+        </Log>
+        <Log id="69">
+            <Date>2019/04/11</Date>
+            <Time>01:58:13</Time>
+            <ms>0</ms>
+            <ch1>94.1688</ch1>
+            <ch2>11.405</ch2>
+        </Log>
+        <Log id="70">
+            <Date>2019/04/11</Date>
+            <Time>02:03:13</Time>
+            <ms>0</ms>
+            <ch1>94.1631</ch1>
+            <ch2>11.383</ch2>
+        </Log>
+        <Log id="71">
+            <Date>2019/04/11</Date>
+            <Time>02:08:13</Time>
+            <ms>0</ms>
+            <ch1>94.1583</ch1>
+            <ch2>11.360</ch2>
+        </Log>
+        <Log id="72">
+            <Date>2019/04/11</Date>
+            <Time>02:13:13</Time>
+            <ms>0</ms>
+            <ch1>94.1584</ch1>
+            <ch2>11.338</ch2>
+        </Log>
+        <Log id="73">
+            <Date>2019/04/11</Date>
+            <Time>02:18:13</Time>
+            <ms>0</ms>
+            <ch1>94.1592</ch1>
+            <ch2>11.316</ch2>
+        </Log>
+        <Log id="74">
+            <Date>2019/04/11</Date>
+            <Time>02:23:13</Time>
+            <ms>0</ms>
+            <ch1>94.1625</ch1>
+            <ch2>11.292</ch2>
+        </Log>
+        <Log id="75">
+            <Date>2019/04/11</Date>
+            <Time>02:28:13</Time>
+            <ms>0</ms>
+            <ch1>94.1608</ch1>
+            <ch2>11.269</ch2>
+        </Log>
+        <Log id="76">
+            <Date>2019/04/11</Date>
+            <Time>02:33:13</Time>
+            <ms>0</ms>
+            <ch1>94.1592</ch1>
+            <ch2>11.246</ch2>
+        </Log>
+        <Log id="77">
+            <Date>2019/04/11</Date>
+            <Time>02:38:13</Time>
+            <ms>0</ms>
+            <ch1>94.1580</ch1>
+            <ch2>11.224</ch2>
+        </Log>
+        <Log id="78">
+            <Date>2019/04/11</Date>
+            <Time>02:43:13</Time>
+            <ms>0</ms>
+            <ch1>94.1578</ch1>
+            <ch2>11.200</ch2>
+        </Log>
+        <Log id="79">
+            <Date>2019/04/11</Date>
+            <Time>02:48:13</Time>
+            <ms>0</ms>
+            <ch1>94.1588</ch1>
+            <ch2>11.177</ch2>
+        </Log>
+        <Log id="80">
+            <Date>2019/04/11</Date>
+            <Time>02:53:13</Time>
+            <ms>0</ms>
+            <ch1>94.1536</ch1>
+            <ch2>11.154</ch2>
+        </Log>
+        <Log id="81">
+            <Date>2019/04/11</Date>
+            <Time>02:58:13</Time>
+            <ms>0</ms>
+            <ch1>94.1557</ch1>
+            <ch2>11.130</ch2>
+        </Log>
+        <Log id="82">
+            <Date>2019/04/11</Date>
+            <Time>03:03:13</Time>
+            <ms>0</ms>
+            <ch1>94.1506</ch1>
+            <ch2>11.107</ch2>
+        </Log>
+        <Log id="83">
+            <Date>2019/04/11</Date>
+            <Time>03:08:13</Time>
+            <ms>0</ms>
+            <ch1>94.1563</ch1>
+            <ch2>11.083</ch2>
+        </Log>
+        <Log id="84">
+            <Date>2019/04/11</Date>
+            <Time>03:13:13</Time>
+            <ms>0</ms>
+            <ch1>94.1571</ch1>
+            <ch2>11.060</ch2>
+        </Log>
+        <Log id="85">
+            <Date>2019/04/11</Date>
+            <Time>03:18:13</Time>
+            <ms>0</ms>
+            <ch1>94.1596</ch1>
+            <ch2>11.036</ch2>
+        </Log>
+        <Log id="86">
+            <Date>2019/04/11</Date>
+            <Time>03:23:13</Time>
+            <ms>0</ms>
+            <ch1>94.1617</ch1>
+            <ch2>11.013</ch2>
+        </Log>
+        <Log id="87">
+            <Date>2019/04/11</Date>
+            <Time>03:28:13</Time>
+            <ms>0</ms>
+            <ch1>94.1632</ch1>
+            <ch2>10.989</ch2>
+        </Log>
+        <Log id="88">
+            <Date>2019/04/11</Date>
+            <Time>03:33:13</Time>
+            <ms>0</ms>
+            <ch1>94.1662</ch1>
+            <ch2>10.966</ch2>
+        </Log>
+        <Log id="89">
+            <Date>2019/04/11</Date>
+            <Time>03:38:13</Time>
+            <ms>0</ms>
+            <ch1>94.1641</ch1>
+            <ch2>10.943</ch2>
+        </Log>
+        <Log id="90">
+            <Date>2019/04/11</Date>
+            <Time>03:43:13</Time>
+            <ms>0</ms>
+            <ch1>94.1669</ch1>
+            <ch2>10.920</ch2>
+        </Log>
+        <Log id="91">
+            <Date>2019/04/11</Date>
+            <Time>03:48:13</Time>
+            <ms>0</ms>
+            <ch1>94.1732</ch1>
+            <ch2>10.896</ch2>
+        </Log>
+        <Log id="92">
+            <Date>2019/04/11</Date>
+            <Time>03:53:13</Time>
+            <ms>0</ms>
+            <ch1>94.1706</ch1>
+            <ch2>10.872</ch2>
+        </Log>
+        <Log id="93">
+            <Date>2019/04/11</Date>
+            <Time>03:58:13</Time>
+            <ms>0</ms>
+            <ch1>94.1805</ch1>
+            <ch2>10.849</ch2>
+        </Log>
+        <Log id="94">
+            <Date>2019/04/11</Date>
+            <Time>04:03:13</Time>
+            <ms>0</ms>
+            <ch1>94.1787</ch1>
+            <ch2>10.826</ch2>
+        </Log>
+        <Log id="95">
+            <Date>2019/04/11</Date>
+            <Time>04:08:13</Time>
+            <ms>0</ms>
+            <ch1>94.1807</ch1>
+            <ch2>10.803</ch2>
+        </Log>
+        <Log id="96">
+            <Date>2019/04/11</Date>
+            <Time>04:13:13</Time>
+            <ms>0</ms>
+            <ch1>94.1864</ch1>
+            <ch2>10.780</ch2>
+        </Log>
+        <Log id="97">
+            <Date>2019/04/11</Date>
+            <Time>04:18:13</Time>
+            <ms>0</ms>
+            <ch1>94.1878</ch1>
+            <ch2>10.757</ch2>
+        </Log>
+        <Log id="98">
+            <Date>2019/04/11</Date>
+            <Time>04:23:13</Time>
+            <ms>0</ms>
+            <ch1>94.1877</ch1>
+            <ch2>10.734</ch2>
+        </Log>
+        <Log id="99">
+            <Date>2019/04/11</Date>
+            <Time>04:28:13</Time>
+            <ms>0</ms>
+            <ch1>94.1869</ch1>
+            <ch2>10.712</ch2>
+        </Log>
+        <Log id="100">
+            <Date>2019/04/11</Date>
+            <Time>04:33:13</Time>
+            <ms>0</ms>
+            <ch1>94.1856</ch1>
+            <ch2>10.690</ch2>
+        </Log>
+    </Data>
+</Body_xle>

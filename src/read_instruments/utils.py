@@ -1,4 +1,5 @@
 import os
+import re
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
@@ -8,6 +9,9 @@ import pandas as pd
 # A single path, and what readers accept: a path or several paths
 StrPath = str | os.PathLike[str]
 Paths = StrPath | Iterable[StrPath]
+# A clock offset from UTC: "UTC+02:00", "GMT+2", "+02:00", "UTC", or hours
+UtcOffset = str | float | None
+OFFSET = re.compile(r"\s*(?:UTC|GMT)?\s*(?:([+-])\s*(\d{1,2})(?::?(\d\d))?)?\s*", re.I)
 
 
 def detect_encoding(file_path: StrPath, sample_size: int = 10000) -> str | None:
@@ -81,6 +85,58 @@ def combine(frames: list[pd.DataFrame], resample: str | None = "1min") -> pd.Dat
     if resample:
         data = data.resample(resample).mean()
     return data
+
+
+def offset_hours(offset: UtcOffset) -> float | None:
+    """Hours east of UTC for an offset like ``"UTC+02:00"``, ``"GMT+1"`` or 2.
+
+    Returns None for None; raises ValueError for text that is not an offset.
+    """
+    if offset is None or isinstance(offset, (int, float)):
+        return offset
+    match = OFFSET.fullmatch(offset)
+    if not match or not offset.strip():
+        raise ValueError(f"Not a UTC offset: {offset!r}")
+    sign, hours, minutes = match.groups()
+    if sign is None:
+        return 0.0
+    value = int(hours) + int(minutes or 0) / 60
+    return -value if sign == "-" else value
+
+
+def to_utc(times: pd.Series | pd.Index, offset: UtcOffset, path: StrPath) -> pd.DatetimeIndex:
+    """UTC index from naive logger clock times and the logger's offset from UTC.
+
+    Raises ValueError when the offset is unknown (the file states none and the
+    caller gave none), rather than guessing.
+    """
+    hours = offset_hours(offset)
+    if hours is None:
+        raise ValueError(
+            f"{path}: the file does not state its time zone; pass utc_offset "
+            "(e.g. 'UTC+02:00')"
+        )
+    index = pd.DatetimeIndex(times) - pd.Timedelta(hours=hours)
+    return index.tz_localize("UTC").rename("Datetime")
+
+
+def check_one_logger(
+    files: list[Path], serial_of: Callable[[Path], str], serial: str | int | None
+) -> list[Path]:
+    """Keep the files of one logger.
+
+    Mooring folders hold many loggers of the same type; combining them would
+    average different depths into one series. With `serial` given, only that
+    logger's files are kept (serials are compared without leading zeros);
+    otherwise all files must come from the same logger.
+    """
+    serials = {f: serial_of(f).lstrip("0") for f in files}
+    if serial is not None:
+        return [f for f in files if serials[f] == str(serial).lstrip("0")]
+    found = sorted(set(serials.values()))
+    if len(found) > 1:
+        raise ValueError(f"Files from several loggers ({', '.join(found)}); pass serial=")
+    return files
 
 
 def merge_nearest(

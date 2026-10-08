@@ -6,6 +6,7 @@ with the date first; newer ones write upper-case headers (``TIME (HH:MM:SS)``,
 rows newest first. Headers are therefore matched case-insensitively.
 """
 
+import codecs
 import io
 import logging
 import re
@@ -69,12 +70,15 @@ COLUMN_NAMES = {
     "ODO % local": "ODO_pctlocal",
     "ODO % sat": "ODO_pctsat",
     "ODO mg/L": "ODO_mgL",
+    "ORP mV": "ORP_mV",
+    "ORP raw mV": "ORPraw_mV",
     "pH": "pH",
     "pH mV": "pH_mV",
     "Sal psu": "Sal_psu",
     "SpCond µS/cm": "SpCond_uScm",
     "TDS mg/L": "TDS_mgL",
     "Temp °C": "Temp_C",
+    "Temp C": "Temp_C",
     "TSS mg/L": "TSS_mgL",
     "Turbidity FNU": "Turb_FNU",
 }
@@ -135,12 +139,11 @@ def read_exo2_file(path: StrPath) -> pd.DataFrame:
     if path.suffix.lower() == ".csv":
         data, created = read_kor_csv(path)
     else:
-        raw = pd.read_excel(path, header=None)
-        rows = [["" if pd.isna(c) else str(c) for c in row] for row in raw.values.tolist()]
+        sheet, rows = kor_sheet(path)
         skiprows = header_rows(rows, path)[0]
         created = file_created(rows[:skiprows])
-        data = pd.read_excel(path, skiprows=skiprows)
-        data.columns = [str(c).strip().upper() for c in data.columns]
+        data = pd.read_excel(path, sheet_name=sheet, skiprows=skiprows)
+        data.columns = [normalise_header(c) for c in data.columns]
 
     time_col = next(c for c in data.columns if c.startswith(TIME_COL_PREFIX))
     # Summary lines (MEAN VALUE, SENSOR SERIAL NUMBER) and repeated headers
@@ -172,18 +175,83 @@ def read_kor_csv(path: Path) -> tuple[pd.DataFrame, str | None]:
     blank line, is parsed separately, and the sections are concatenated.
     Also returns the ``FILE CREATED`` stamp.
     """
-    with open(path, encoding=detect_encoding(path)) as f:
-        lines = f.read().splitlines()
-    sep = lines[0].split("=")[1]
+    lines = decode(path).splitlines()
+    sep = separator(lines, path)
     rows = [line.split(sep) for line in lines]
     starts = header_rows(rows, path)
     sections = []
     for start in starts:
         end = next((i for i in range(start + 1, len(lines)) if not lines[i].strip()), len(lines))
         section = pd.read_csv(io.StringIO("\n".join(lines[start:end])), sep=sep, dtype=str)
-        section.columns = [str(c).strip().upper() for c in section.columns]
+        section.columns = [normalise_header(c) for c in section.columns]
         sections.append(section)
     return pd.concat(sections, ignore_index=True), file_created(rows[: starts[0]])
+
+
+def decode(path: Path) -> str:
+    """Text of a CSV export.
+
+    KOR writes UTF-16 or UTF-8; copies re-saved by Excel are often Windows
+    Latin-1, which chardet can mistake for an East Asian encoding (garbling
+    ``°`` and ``µ`` in the headers). So: UTF-16 when there is a BOM or chardet
+    says so, else UTF-8 if the bytes are valid, else cp1252.
+    """
+    data = path.read_bytes()
+    if data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+        return data.decode("utf-16")
+    try:
+        return data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        pass
+    encoding = detect_encoding(path)
+    if encoding and encoding.lower().startswith("utf-16"):
+        return data.decode(encoding)
+    return data.decode("cp1252", errors="replace")
+
+
+def separator(lines: list[str], path: StrPath) -> str:
+    """CSV separator: declared on a ``sep=`` first line, else read off the header row.
+
+    Older KOR exports have no ``sep=`` line, nor do copies re-saved by Excel.
+    """
+    if lines and lines[0].startswith("sep="):
+        return lines[0].split("=", 1)[1]
+    header = next((line for line in lines if DATE_COL in line.upper()), None)
+    if header is None:
+        raise ValueError(f"No '{DATE_COL}' header row in {path}")
+    return max((";", ",", "\t"), key=header.count)
+
+
+def normalise_header(column: object) -> str:
+    """Upper-case header with the degree sign repaired.
+
+    Files decoded in the wrong encoding show ``°`` as ``Â°`` or a replacement
+    character.
+    """
+    text = str(column).strip().replace("Â°", "°").replace("�", "°")
+    return text.upper()
+
+
+def kor_sheet(path: Path) -> tuple[str | int, list[list[str]]]:
+    """The sheet of an Excel export holding the KOR export, and its cells as text.
+
+    Users sometimes add edited copies of the data as further sheets, which can
+    come first (e.g. ``Sheet1 (2)`` before ``Sheet1``). The sheet starting
+    with ``KOR Export File`` is used when there is one, otherwise the first
+    sheet with a date header.
+    """
+    sheets = pd.read_excel(path, sheet_name=None, header=None)
+    candidates = []
+    for name, raw in sheets.items():
+        rows = [["" if pd.isna(c) else str(c) for c in row] for row in raw.values.tolist()]
+        if not any(c.strip().upper() == DATE_COL for row in rows for c in row):
+            continue
+        if rows and rows[0] and rows[0][0].strip().upper().startswith("KOR EXPORT"):
+            return name, rows
+        candidates.append((name, rows))
+    if not candidates:
+        raise ValueError(f"No '{DATE_COL}' header row in {path}")
+    return candidates[0]
 
 
 def to_number(column: pd.Series) -> pd.Series:
@@ -198,8 +266,12 @@ def to_number(column: pd.Series) -> pd.Series:
 
 
 def parse_dates(dates: pd.Series, path: StrPath, formats: tuple[str, ...]) -> pd.Series:
-    """Parse the date column with the first of `formats` that fits every row."""
-    for fmt in formats:
+    """Parse the date column with the first of `formats` that fits every row.
+
+    ``dd.mm.yyyy``, written by copies re-saved with a European locale, is
+    tried last.
+    """
+    for fmt in (*formats, "%d.%m.%Y"):
         try:
             return pd.to_datetime(dates, format=fmt)
         except ValueError:
@@ -232,7 +304,13 @@ def file_created(rows: list[list[str]]) -> str | None:
     """Value next to the ``FILE CREATED:`` label in the metadata rows, if any."""
     for row in rows:
         cells = [c.strip() for c in row]
-        if cells and cells[0].upper() == "FILE CREATED:" and len(cells) > 1:
+        if not cells or not cells[0].upper().startswith("FILE CREATED:"):
+            continue
+        # Label and value in separate cells, or in one ("File Created:7/11/2018 ...")
+        value = cells[0][len("FILE CREATED:") :].strip()
+        if value:
+            return value
+        if len(cells) > 1:
             return cells[1]
     return None
 
