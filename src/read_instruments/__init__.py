@@ -12,6 +12,7 @@ from read_instruments.lgr import find_lgr_files, read_lgr, read_lgr_file
 from read_instruments.minidot import find_minidot_files, read_minidot, read_minidot_file
 from read_instruments.rbr import find_rbr_files, read_rbr, read_rbr_file
 from read_instruments.roma import find_roma_files, read_roma, read_roma_file
+from read_instruments.seabird import find_seabird_files, read_seabird, read_seabird_file
 from read_instruments.solinst import find_solinst_files, read_solinst, read_solinst_file
 from read_instruments.vemco import find_vemco_files, read_vemco, read_vemco_file
 from read_instruments.utils import combine, detect_encoding, merge_nearest
@@ -38,6 +39,9 @@ __all__ = [
     "read_roma",
     "read_roma_file",
     "find_roma_files",
+    "read_seabird",
+    "read_seabird_file",
+    "find_seabird_files",
     "read_solinst",
     "read_solinst_file",
     "find_solinst_files",

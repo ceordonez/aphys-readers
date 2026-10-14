@@ -13,7 +13,7 @@ Small, reusable routines to read raw data from the instruments of the Aquatic Ph
 | RBR (e.g. TR-1060) | `read_rbr` | Ruskin text exports (ODV spreadsheet or plain) |
 | Solinst Levelogger / Barologger | `read_solinst` | `.xle` files and their `.csv` exports |
 | CH4/CO2 probe ("Roma") | `read_roma` | Probe text files, raw or processed |
-| Seabird | planned | |
+| Sea-Bird CTD (SBE 19plus) | `read_seabird` | `.cnv` files from SBE Data Processing |
 | Picarro | planned | |
 
 ## Install
@@ -68,7 +68,7 @@ The output is always UTC. LGR, EXO2, GPS and miniDOT log in UTC. The mooring log
 | HOBO | the date column header (`Date Time, GMT+02:00`) |
 | miniDOT | Unix timestamps (UTC) |
 | RBR plain export | the `Z` on each timestamp (UTC) |
-| RBR ODV export, Solinst, CH4/CO2 probe | nothing: pass `utc_offset` |
+| RBR ODV export, Solinst, CH4/CO2 probe, Sea-Bird | nothing: pass `utc_offset` |
 
 `utc_offset` accepts `"UTC+02:00"`, `"GMT+1"`, `"+02:00"`, `"UTC"` or a number of hours. When given, it overrides the offset in the file. A reader raises an error rather than guess when a file states no offset and none is given.
 
@@ -136,8 +136,25 @@ exo2/15L103185/
 - **One copy per recording.** KOR often exports a recording several times (`.xls`, `.csv`, or `_1.csv`, `_2.csv` parts) with slightly different rounding. Its CSV files are read when there are any, otherwise its Excel file.
 - **Old and new KOR exports.** Both older exports (mixed-case headers, date first) and newer ones (upper-case headers, time first, `;` with decimal commas, newest row first) are read, as are backup files holding several exports one after another.
 - **Date order.** KOR labels the date column MM/DD/YYYY but writes dates in the exporting computer's locale. The order is taken from the file's `FILE CREATED` stamp: a 12-hour clock (`7/29/2020 1:36:35 PM`) means month-first, a 24-hour clock (`06/08/2023 20:44:08`) day-first.
-- **Dropped columns:** site name, file name, user, fault code, depth, pressure, vertical position and cable power.
+- **Dropped columns:** site name, file name, user, fault code and cable power. Depth, pressure and vertical position are kept (`Depth_m`, `Press_psia` or `Press_bara`, `VPos_m`). The pressure sensor is non-vented, so `Depth_m` moves with air pressure; KOR references it to the air pressure when the depth was last zeroed.
 - **Other variants read:** older KOR CSVs without a `sep=` line, `Temp C` headers, Excel files with edited copies of the data as extra sheets (the `KOR Export File` sheet is used), and copies re-saved by Excel in Latin-1 with `;` and `dd.mm.yyyy` dates.
+
+### Sea-Bird
+
+Reads `.cnv` files (casts converted with SBE Data Processing / DatCnv) below the directory, and `.asc` + `.hdr` pairs (the same conversion saved by SeaTerm in two files) when there is no `.cnv` of the same name. The raw `.hex` uploads need SBE Data Processing first and are ignored.
+
+```python
+from read_instruments import read_seabird
+
+cast = read_seabird("ctd/sbe19plus/20180410", utc_offset="UTC")
+```
+
+- **Every scan is kept** (`resample=None` by default), as a profile needs.
+- **Times** are `# start_time` plus the `timeS` or `scan` column when there is one, otherwise row number × `# interval`. Bin-averaged files are refused.
+- **Time zone:** the instrument clock is set from the computer used to set it up; the file does not say which zone. Pass `utc_offset`.
+- **Pressure is sea pressure.** The instrument subtracts a standard sea-level atmosphere (10.1325 dbar), so on a lake above sea level `Press_dbar` and `Depth_m` read below zero at the surface (about −0.7 dbar at 600 m a.s.l.), and the strain-gauge reading drifts for a minute or two after the instrument goes from air into water. Reference the depth to the surface yourself (e.g. from a surface soak before the cast).
+- **Columns:** SBE short names are renamed (`prdM` → `Press_dbar`, `depFM` → `Depth_m`, `tv290C` → `Temp_C`, `c0uS/cm` → `Cond_uScm`, `specc` → `SpCond_uScm`, `sbeox0Mm/L` → `DO_umolL`, `sbeox0PS` → `DO_pctsat`, `flECO-AFL` → `Chl_mgm3`, `turbWETntu0` → `Turb_NTU`, ...; see `COLUMN_NAMES`); others keep their SBE name. Values equal to `# bad_flag` become NaN.
+- **Copies:** identical copies of a cast under different names are kept once when a directory is read.
 
 ## Things to watch
 

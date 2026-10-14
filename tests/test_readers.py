@@ -16,6 +16,7 @@ from read_instruments import (
     find_exo2_files,
     find_gps_files,
     find_lgr_files,
+    find_seabird_files,
     merge_nearest,
     read_exo2,
     read_exo2_file,
@@ -23,6 +24,8 @@ from read_instruments import (
     read_gps_file,
     read_lgr,
     read_lgr_file,
+    read_seabird,
+    read_seabird_file,
 )
 from read_instruments.exo2 import date_formats
 
@@ -40,16 +43,19 @@ MAUR_PARTS = [EXO2_DIR / f"Maur_12M101161_060420_143037{s}.csv" for s in ("", "_
 LGR_COLUMNS = ["H2O_ppm", "CH4d_ppm", "CO2d_ppm", "GasP_torr", "GasT_C", "RD0_us", "RD1_us"]
 EXO2_COLUMNS = [
     "Cond_uScm",
+    "Depth_m",
     "nLFCond_uScm",
     "ODO_pctsat",
     "ODO_pctlocal",
     "ODO_mgL",
+    "Press_psia",
     "Sal_psu",
     "SpCond_uScm",
     "TDS_mgL",
     "Turb_FNU",
     "TSS_mgL",
     "Temp_C",
+    "VPos_m",
     "Battery_V",
 ]
 GPS_COLUMNS = ["Lat_deg", "Lon_deg", "Alt_m"]
@@ -147,6 +153,7 @@ def test_read_exo2_file_csv():
     assert data.index[0] == utc("2020-07-23 07:27:32")
     assert data.index[-1] == utc("2020-08-02 07:12:32")
     assert data["Temp_C"].iloc[0] == pytest.approx(7.924)
+    assert data["Depth_m"].iloc[0] == pytest.approx(0.680)
     assert (data.dtypes == float).all()
 
 
@@ -281,6 +288,19 @@ def test_read_exo2_file_dot_separator(tmp_path):
     path = tmp_path / "dot.csv"
     path.write_text("\n".join(meta + body) + "\n", encoding="utf-16")
     pd.testing.assert_frame_equal(read_exo2_file(path), read_exo2_file(EXO2_CSV))
+
+
+def test_read_exo2_file_fractional_seconds(tmp_path):
+    # Sampling faster than 1 Hz: rows share a second and differ in "Time (Fract. Sec)"
+    lines = exo2_lines(EXO2_CSV)
+    start = next(i for i, line in enumerate(lines) if line.startswith("Date (MM/DD/YYYY)"))
+    row = lines[start + 1].split(",")
+    quarter = [",".join([*row[:2], f"{s:.2f}", *row[3:]]) for s in (0, 0.25, 0.5, 0.75)]
+    path = tmp_path / "fast.csv"
+    path.write_text("\n".join(lines[: start + 1] + quarter) + "\n", encoding="utf-16")
+    data = read_exo2_file(path)
+    assert data.index.name == "Datetime"
+    assert list(data.index - data.index[0]) == [pd.Timedelta(seconds=s) for s in (0, 0.25, 0.5, 0.75)]
 
 
 @pytest.mark.parametrize(
@@ -424,3 +444,61 @@ def test_merge_nearest_different_time_units():
     merged = merge_nearest(native, minutes)
     assert merged.index.equals(native.index)
     assert merged["CH4_1min"].notna().all()
+
+
+SEABIRD_DIR = DATA / "seabird"
+SEABIRD_CNV = SEABIRD_DIR / "SBE19plus_01907803_2018_04_10.cnv"
+
+
+def test_read_seabird_file():
+    data = read_seabird_file(SEABIRD_CNV, utc_offset="UTC")
+    assert len(data) == 40
+    assert {"Press_dbar", "Depth_m", "Temp_C", "Cond_uScm", "DO_umolL"} <= set(data.columns)
+    assert data.index[0] == utc("2018-04-10 11:08:58")
+    assert data.index[1] - data.index[0] == pd.Timedelta("250ms")
+    assert data["Press_dbar"].iloc[0] == pytest.approx(-0.604)  # sea pressure: < 0 at the surface
+    assert data["Temp_C"].iloc[0] == pytest.approx(12.4859)
+    assert (data.dtypes == float).all()
+
+
+def test_read_seabird_file_needs_offset():
+    with pytest.raises(ValueError, match="utc_offset"):
+        read_seabird_file(SEABIRD_CNV)
+    local = read_seabird_file(SEABIRD_CNV, utc_offset="UTC+02:00")
+    assert local.index[0] == utc("2018-04-10 09:08:58")
+
+
+def test_read_seabird_file_time_from_scan_column(tmp_path):
+    # Every second row dropped: times must follow the scan numbers, not the row numbers
+    lines = SEABIRD_CNV.read_text(encoding="latin-1").splitlines()
+    end = lines.index("*END*")
+    names = [i for i, line in enumerate(lines) if line.startswith("# name")]
+    head = lines[: names[-1] + 1] + [f"# name {len(names)} = scan: Scan Count"] + lines[names[-1] + 1 : end + 1]
+    rows = [f"{line} {i + 1}" for i, line in enumerate(lines[end + 1 :])][::2]
+    path = tmp_path / "every_second_scan.cnv"
+    path.write_text("\n".join(head + rows), encoding="latin-1")
+    data = read_seabird_file(path, utc_offset="UTC")
+    assert "scan" not in data
+    assert data.index[1] - data.index[0] == pd.Timedelta("500ms")
+
+
+def test_read_seabird_directory_keeps_one_copy(tmp_path):
+    (tmp_path / "a.cnv").write_bytes(SEABIRD_CNV.read_bytes())
+    (tmp_path / "a_copy.cnv").write_bytes(SEABIRD_CNV.read_bytes())
+    assert len(find_seabird_files(tmp_path)) == 2
+    data = read_seabird(tmp_path, utc_offset="UTC")
+    assert len(data) == 40
+
+
+def test_read_seabird_file_asc_with_hdr(tmp_path):
+    # SeaTerm's split conversion: header in .hdr, column titles and data in .asc
+    lines = SEABIRD_CNV.read_text(encoding="latin-1").splitlines()
+    end = lines.index("*END*")
+    (tmp_path / "cast.hdr").write_text("\n".join(lines[: end + 1]), encoding="latin-1")
+    (tmp_path / "cast.asc").write_text("\n".join(["      DepFM  Density00 ...", *lines[end + 1 :]]), encoding="latin-1")
+    assert find_seabird_files(tmp_path) == [tmp_path / "cast.asc"]
+    data = read_seabird_file(tmp_path / "cast.asc", utc_offset="UTC")
+    pd.testing.assert_frame_equal(data, read_seabird_file(SEABIRD_CNV, utc_offset="UTC"))
+    # With a .cnv of the same name, the .asc is not listed
+    (tmp_path / "cast.cnv").write_bytes(SEABIRD_CNV.read_bytes())
+    assert find_seabird_files(tmp_path) == [tmp_path / "cast.cnv"]

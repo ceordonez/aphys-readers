@@ -25,11 +25,12 @@ from read_instruments.utils import (
 
 DATE_COL = "DATE (MM/DD/YYYY)"
 TIME_COL_PREFIX = "TIME (HH:"
+FRACT_COL = "TIME (FRACT. SEC)"
 FILE_SUFFIXES = (".csv", ".xls", ".xlsx")
 # Multi-part CSV exports of one recording end in _1, _2, ...
 PART_SUFFIX = re.compile(r"_\d{1,2}$")
 
-# Metadata and position columns left out of the output
+# Metadata columns left out of the output
 DROP_COLUMNS = [
     "Site Name",
     "File Name",
@@ -41,10 +42,6 @@ DROP_COLUMNS = [
     # With sep=".", this header and its values (0.0) are split in two
     "Time (Fract",
     "Sec)",
-    "Depth m",
-    "Pressure psi a",
-    "Press bar a",
-    "Vertical Position m",
     "Cable Pwr V",
 ]
 # KOR header -> output name; unlisted columns keep their KOR header
@@ -60,6 +57,8 @@ COLUMN_NAMES = {
     "Chlorophyll RFU": "Chl_RFU",
     "Chlorophyll ug/L": "Chl_ugL",
     "Cond µS/cm": "Cond_uScm",
+    # Depth from the non-vented pressure sensor, as computed by KOR
+    "Depth m": "Depth_m",
     "fDOM QSU": "fDOM_QSU",
     "GPS Latitude °": "Lat_deg",
     "GPS Longitude °": "Lon_deg",
@@ -74,6 +73,8 @@ COLUMN_NAMES = {
     "ORP raw mV": "ORPraw_mV",
     "pH": "pH",
     "pH mV": "pH_mV",
+    "Press bar a": "Press_bara",
+    "Pressure psi a": "Press_psia",
     "Sal psu": "Sal_psu",
     "SpCond µS/cm": "SpCond_uScm",
     "TDS mg/L": "TDS_mgL",
@@ -81,6 +82,7 @@ COLUMN_NAMES = {
     "Temp C": "Temp_C",
     "TSS mg/L": "TSS_mgL",
     "Turbidity FNU": "Turb_FNU",
+    "Vertical Position m": "VPos_m",
 }
 
 _DROP = {c.upper() for c in DROP_COLUMNS}
@@ -159,6 +161,10 @@ def read_exo2_file(path: StrPath) -> pd.DataFrame:
         ),
         name="Datetime",
     ).tz_localize("UTC")
+    # Sampling faster than 1 Hz puts the sub-second part in its own column
+    if FRACT_COL in data:
+        fraction = to_number(data[FRACT_COL]).fillna(0.0).to_numpy()
+        data.index = (data.index + pd.to_timedelta(fraction, unit="s")).rename("Datetime")
 
     # UNNAMED: columns come from blank header cells
     data = data.drop(columns=[c for c in data.columns if c in _DROP or c.startswith("UNNAMED:")])
