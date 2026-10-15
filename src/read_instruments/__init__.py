@@ -6,6 +6,7 @@ converted using the offset in their files or the ``utc_offset`` argument.
 MeteoSwiss station data (``read_meteoswiss``) are read the same way.
 """
 
+from read_instruments.campbell import find_campbell_files, read_campbell, read_campbell_file
 from read_instruments.exo2 import find_exo2_files, read_exo2, read_exo2_file
 from read_instruments.gps import find_gps_files, read_gps, read_gps_file
 from read_instruments.hobo import find_hobo_files, read_hobo, read_hobo_file
@@ -20,6 +21,9 @@ from read_instruments.vemco import find_vemco_files, read_vemco, read_vemco_file
 from read_instruments.utils import combine, detect_encoding, merge_nearest
 
 __all__ = [
+    "read_campbell",
+    "read_campbell_file",
+    "find_campbell_files",
     "read_exo2",
     "read_exo2_file",
     "find_exo2_files",

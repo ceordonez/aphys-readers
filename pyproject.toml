@@ -1,7 +1,7 @@
 [project]
 name = "read-instruments"
 version = "0.1.0"
-description = "Readers for Aquatic Physics group instruments (EXO2, LGR, Sea-Bird, GPS, mooring loggers, MeteoSwiss stations; Picarro planned)"
+description = "Readers for Aquatic Physics group instruments (EXO2, LGR, Sea-Bird, GPS, mooring loggers, MeteoSwiss stations, Campbell loggers; Picarro planned)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

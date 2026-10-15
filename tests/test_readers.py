@@ -13,6 +13,9 @@ import pandas as pd
 import pytest
 
 from read_instruments import (
+    find_campbell_files,
+    read_campbell,
+    read_campbell_file,
     find_exo2_files,
     find_gps_files,
     find_lgr_files,
@@ -556,3 +559,60 @@ def test_read_meteoswiss_one_station(tmp_path):
 
 def test_read_meteoswiss_empty_directory(tmp_path):
     assert read_meteoswiss(tmp_path).empty
+
+
+CAMPBELL_DIR = DATA / "campbell"
+CAMPBELL_ATMOS41 = CAMPBELL_DIR / "CR200-Soppen_Atmos41_10min.dat"
+
+
+def test_read_campbell_file():
+    data = read_campbell_file(CAMPBELL_ATMOS41, utc_offset="UTC+01:00")
+    assert len(data) == 20
+    assert data.index[0] == utc("2018-05-29 13:20:00")
+    assert data.index.name == "Datetime"
+    assert "RECORD" not in data
+    assert {"SWin_Wm2", "Tair_C", "Press_kPa", "VapPress_kPa", "WS_ms", "WD_deg", "Precip_mm", "Battery_V"} <= set(data.columns)
+    assert data["Tair_C"].iloc[0] == pytest.approx(19.7)
+    assert data["Press_kPa"].iloc[1] == pytest.approx(94.71)
+    assert (data.dtypes == float).all()
+
+
+def test_read_campbell_file_needs_offset():
+    with pytest.raises(ValueError, match="utc_offset"):
+        read_campbell_file(CAMPBELL_ATMOS41)
+
+
+def test_read_campbell_file_nan(tmp_path):
+    lines = CAMPBELL_ATMOS41.read_text().splitlines()
+    fields = lines[5].split(",")
+    fields[3] = '"NAN"'
+    path = tmp_path / "nan.dat"
+    path.write_text("\n".join(lines[:5] + [",".join(fields)] + lines[6:]))
+    data = read_campbell_file(path, utc_offset="UTC")
+    assert pd.isna(data["Tair_C"].iloc[1])
+
+
+def test_read_campbell_directory_overlapping_downloads(tmp_path):
+    # A later download repeats the rows still in the logger memory
+    lines = CAMPBELL_ATMOS41.read_text().splitlines()
+    (tmp_path / "20180712").mkdir()
+    (tmp_path / "20180913").mkdir()
+    (tmp_path / "20180712/table.dat").write_text("\n".join(lines[:14]))
+    (tmp_path / "20180913/table.dat").write_text("\n".join(lines))
+    (tmp_path / "notes.txt").write_text("not a table")
+    assert len(find_campbell_files(tmp_path)) == 2
+    data = read_campbell(tmp_path, utc_offset="UTC")
+    pd.testing.assert_frame_equal(data, read_campbell_file(CAMPBELL_ATMOS41, utc_offset="UTC"), check_freq=False)
+
+
+def test_read_campbell_one_table(tmp_path):
+    lines = CAMPBELL_ATMOS41.read_text().splitlines()
+    (tmp_path / "a.dat").write_text("\n".join(lines))
+    (tmp_path / "b.dat").write_text("\n".join([lines[0].replace("Atmos41_10min", "Daily"), *lines[1:]]))
+    with pytest.raises(ValueError, match="several tables"):
+        read_campbell(tmp_path, utc_offset="UTC")
+    assert len(read_campbell(tmp_path, utc_offset="UTC", table="Daily")) == 20
+
+
+def test_read_campbell_empty_directory(tmp_path):
+    assert read_campbell(tmp_path, utc_offset="UTC").empty

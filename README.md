@@ -14,6 +14,7 @@ Small, reusable routines to read raw data from the instruments of the Aquatic Ph
 | Solinst Levelogger / Barologger | `read_solinst` | `.xle` files and their `.csv` exports |
 | CH4/CO2 probe ("Roma") | `read_roma` | Probe text files, raw or processed |
 | Sea-Bird CTD (SBE 19plus) | `read_seabird` | `.cnv` files from SBE Data Processing |
+| Campbell Scientific loggers (e.g. METER ATMOS 41 weather station on a CR200) | `read_campbell` | `TOA5` table files (`.dat`) |
 | MeteoSwiss weather stations | `read_meteoswiss` | Open-data station files (`ogd-smn_<station>_<t/h/d/m/y>_*.csv`) |
 | Picarro | planned | |
 
@@ -69,7 +70,7 @@ The output is always UTC. LGR, EXO2, GPS, miniDOT and MeteoSwiss data are in UTC
 | HOBO | the date column header (`Date Time, GMT+02:00`) |
 | miniDOT | Unix timestamps (UTC) |
 | RBR plain export | the `Z` on each timestamp (UTC) |
-| RBR ODV export, Solinst, CH4/CO2 probe, Sea-Bird | nothing: pass `utc_offset` |
+| RBR ODV export, Solinst, CH4/CO2 probe, Sea-Bird, Campbell | nothing: pass `utc_offset` |
 
 `utc_offset` accepts `"UTC+02:00"`, `"GMT+1"`, `"+02:00"`, `"UTC"` or a number of hours. When given, it overrides the offset in the file. A reader raises an error rather than guess when a file states no offset and none is given.
 
@@ -156,6 +157,21 @@ cast = read_seabird("ctd/sbe19plus/20180410", utc_offset="UTC")
 - **Pressure is sea pressure.** The instrument subtracts a standard sea-level atmosphere (10.1325 dbar), so on a lake above sea level `Press_dbar` and `Depth_m` read below zero at the surface (about −0.7 dbar at 600 m a.s.l.), and the strain-gauge reading drifts for a minute or two after the instrument goes from air into water. Reference the depth to the surface yourself (e.g. from a surface soak before the cast).
 - **Columns:** SBE short names are renamed (`prdM` → `Press_dbar`, `depFM` → `Depth_m`, `tv290C` → `Temp_C`, `c0uS/cm` → `Cond_uScm`, `specc` → `SpCond_uScm`, `sbeox0Mm/L` → `DO_umolL`, `sbeox0PS` → `DO_pctsat`, `flECO-AFL` → `Chl_mgm3`, `turbWETntu0` → `Turb_NTU`, ...; see `COLUMN_NAMES`); others keep their SBE name. Values equal to `# bad_flag` become NaN.
 - **Copies:** identical copies of a cast under different names are kept once when a directory is read.
+
+### Campbell (ATMOS 41)
+
+Reads Campbell Scientific `TOA5` tables, the text files a CR200/CR1000/CR6 logger writes per table (here `CR200-Soppen_Atmos41_10min.dat`, a METER ATMOS 41 all-in-one weather station). Files are recognised by their first field (`"TOA5"`), whatever their extension.
+
+```python
+from read_instruments import read_campbell
+
+atmos = read_campbell("data/raw/weather/atmos41", utc_offset="UTC+01:00")
+```
+
+- **Time zone:** the files do not state the logger clock's time zone; pass `utc_offset`. Timestamps are kept as recorded: for averages and totals Campbell marks the **end** of the interval.
+- **One table per call:** a logger writes one file per table (10-min, daily...). Pass `table=` (the last field of the first header line, e.g. `"Atmos41_10min"`) when a folder holds several.
+- **Overlapping downloads:** each download repeats what is still in the logger memory; identical rows are kept once.
+- **Columns:** the ATMOS 41 fields are renamed (`Rad_Avg` → `SWin_Wm2`, `AirTemp_Avg` → `Tair_C`, `AirPress_Avg` → `Press_kPa`, `VaporPress_Avg` → `VapPress_kPa`, `WSpeed_Avg` → `WS_ms`, `WDirection_Avg` → `WD_deg`, `WSpeed`/`WDirection` (samples) → `WSsmp_ms`/`WDsmp_deg`, `gWSpeed_Tot` → `Gust_ms`, `Pp_Tot` → `Precip_mm`, `batt_volt_Min` → `Battery_V`; see `COLUMN_NAMES`); other fields keep their name, units as in the file. `RECORD` is dropped, `NAN` becomes NaN. Values are not checked: the Lake Soppen files have impossible pressures and negative wind averages that need cleaning.
 
 ### MeteoSwiss
 
