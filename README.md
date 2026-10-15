@@ -14,6 +14,7 @@ Small, reusable routines to read raw data from the instruments of the Aquatic Ph
 | Solinst Levelogger / Barologger | `read_solinst` | `.xle` files and their `.csv` exports |
 | CH4/CO2 probe ("Roma") | `read_roma` | Probe text files, raw or processed |
 | Sea-Bird CTD (SBE 19plus) | `read_seabird` | `.cnv` files from SBE Data Processing |
+| MeteoSwiss weather stations | `read_meteoswiss` | Open-data station files (`ogd-smn_<station>_<t/h/d/m/y>_*.csv`) |
 | Picarro | planned | |
 
 ## Install
@@ -60,7 +61,7 @@ When reading a directory:
 
 ## Time zones
 
-The output is always UTC. LGR, EXO2, GPS and miniDOT log in UTC. The mooring loggers often keep local time:
+The output is always UTC. LGR, EXO2, GPS, miniDOT and MeteoSwiss data are in UTC. The mooring loggers often keep local time:
 
 | Logger | Clock offset taken from |
 | --- | --- |
@@ -155,6 +156,21 @@ cast = read_seabird("ctd/sbe19plus/20180410", utc_offset="UTC")
 - **Pressure is sea pressure.** The instrument subtracts a standard sea-level atmosphere (10.1325 dbar), so on a lake above sea level `Press_dbar` and `Depth_m` read below zero at the surface (about −0.7 dbar at 600 m a.s.l.), and the strain-gauge reading drifts for a minute or two after the instrument goes from air into water. Reference the depth to the surface yourself (e.g. from a surface soak before the cast).
 - **Columns:** SBE short names are renamed (`prdM` → `Press_dbar`, `depFM` → `Depth_m`, `tv290C` → `Temp_C`, `c0uS/cm` → `Cond_uScm`, `specc` → `SpCond_uScm`, `sbeox0Mm/L` → `DO_umolL`, `sbeox0PS` → `DO_pctsat`, `flECO-AFL` → `Chl_mgm3`, `turbWETntu0` → `Turb_NTU`, ...; see `COLUMN_NAMES`); others keep their SBE name. Values equal to `# bad_flag` become NaN.
 - **Copies:** identical copies of a cast under different names are kept once when a directory is read.
+
+### MeteoSwiss
+
+Reads the station files of the MeteoSwiss open data (OGD; data © MeteoSwiss, see [opendatadocs.meteoswiss.ch](https://opendatadocs.meteoswiss.ch) for the terms of use and parameter descriptions). One file per station, granularity and period: `ogd-smn_ego_t_historical_2010-2019.csv` is SwissMetNet station EGO (Egolzwil), 10-min values (`t`; also `h`, `d`, `m`, `y`), checked data up to the end of last year (`historical`; also `recent` and `now`).
+
+```python
+from read_instruments import read_meteoswiss
+
+ego = read_meteoswiss("data/raw/ego")                     # 10-min files by default
+ego_hourly = read_meteoswiss("data/raw/ego", granularity="h")
+```
+
+- **Timestamps are UTC and kept as published:** for 10-min and hourly values they mark the *end* of the interval (`16:00` = 15:50:01–16:00:00 for means and totals; current values are taken at that time); for daily, monthly and yearly values they mark the start. `resample` therefore averages each value into the bin of its end time.
+- **One station per call:** pass `station=` (e.g. `"EGO"`) when a folder holds several. Only files of one granularity are read from a directory; the metadata files (`ogd-smn_meta_parameters.csv`, ...) are ignored.
+- **Columns:** the 10-min parameter short names are renamed (`tre200s0` → `Tair_C`, `ure200s0` → `RH_pct`, `pva200s0` → `VapPress_hPa`, `prestas0` → `Press_hPa` (station level, QFE), `fkl010z0` → `WS_ms`, `dkl010z0` → `WD_deg`, `rre150z0` → `Precip_mm`, `gre000z0` → `SWin_Wm2`, `oli000z0` → `LWin_Wm2`, ...; see `COLUMN_NAMES`); others keep their short name. Parameters not measured at the station (empty columns) are dropped. Empty fields are missing values.
 
 ## Things to watch
 

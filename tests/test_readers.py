@@ -16,6 +16,7 @@ from read_instruments import (
     find_exo2_files,
     find_gps_files,
     find_lgr_files,
+    find_meteoswiss_files,
     find_seabird_files,
     merge_nearest,
     read_exo2,
@@ -24,6 +25,8 @@ from read_instruments import (
     read_gps_file,
     read_lgr,
     read_lgr_file,
+    read_meteoswiss,
+    read_meteoswiss_file,
     read_seabird,
     read_seabird_file,
 )
@@ -502,3 +505,54 @@ def test_read_seabird_file_asc_with_hdr(tmp_path):
     # With a .cnv of the same name, the .asc is not listed
     (tmp_path / "cast.cnv").write_bytes(SEABIRD_CNV.read_bytes())
     assert find_seabird_files(tmp_path) == [tmp_path / "cast.cnv"]
+
+
+METEOSWISS_DIR = DATA / "meteoswiss"
+METEOSWISS_EGO = METEOSWISS_DIR / "ogd-smn_ego_t_historical_2010-2019.csv"
+
+
+def test_read_meteoswiss_file():
+    data = read_meteoswiss_file(METEOSWISS_EGO)
+    assert len(data) == 12
+    assert data.index[0] == utc("2010-01-01 00:00")
+    assert data.index.name == "Datetime"
+    # Parameters not measured at the station (empty columns) are dropped
+    assert "tre005s0" not in data and "Tair5cm_C" not in data
+    assert {"Tair_C", "RH_pct", "Press_hPa", "WS_ms", "WD_deg", "Precip_mm", "SWin_Wm2"} <= set(data.columns)
+    row = data.loc[utc("2017-07-01 10:00")]
+    assert row["Tair_C"] == pytest.approx(17.1)
+    assert row["SWin_Wm2"] == 388
+    assert row["Press_hPa"] == pytest.approx(954.6)
+    assert pd.isna(data["Tair_C"].iloc[0])  # empty field = missing
+    assert (data.dtypes == float).all()
+
+
+def test_find_meteoswiss_files(tmp_path):
+    (tmp_path / "ogd-smn_meta_parameters.csv").write_text("parameter_shortname;parameter_unit\n")
+    for name in (
+        "ogd-smn_ego_t_historical_2010-2019.csv",
+        "ogd-smn_ego_t_recent.csv",
+        "ogd-smn_ego_h_historical_2010-2019.csv",
+        "ogd-smn_ego_t_historical_2010-2019-Laptop-safeBackup-0001.csv",
+    ):
+        (tmp_path / name).write_bytes(METEOSWISS_EGO.read_bytes())
+    assert [f.name for f in find_meteoswiss_files(tmp_path)] == [
+        "ogd-smn_ego_t_historical_2010-2019-Laptop-safeBackup-0001.csv",
+        "ogd-smn_ego_t_historical_2010-2019.csv",
+        "ogd-smn_ego_t_recent.csv",
+    ]
+    assert [f.name for f in find_meteoswiss_files(tmp_path, "h")] == ["ogd-smn_ego_h_historical_2010-2019.csv"]
+
+
+def test_read_meteoswiss_one_station(tmp_path):
+    (tmp_path / METEOSWISS_EGO.name).write_bytes(METEOSWISS_EGO.read_bytes())
+    lines = METEOSWISS_EGO.read_text().replace("EGO;", "LUZ;")
+    (tmp_path / "ogd-smn_luz_t_historical_2010-2019.csv").write_text(lines)
+    with pytest.raises(ValueError, match="several"):
+        read_meteoswiss(tmp_path)
+    ego = read_meteoswiss(tmp_path, station="ego")
+    pd.testing.assert_frame_equal(ego, read_meteoswiss_file(METEOSWISS_EGO))
+
+
+def test_read_meteoswiss_empty_directory(tmp_path):
+    assert read_meteoswiss(tmp_path).empty
