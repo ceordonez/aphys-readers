@@ -8,11 +8,19 @@ are derived from the real files in a temporary directory.
 import zipfile
 from pathlib import Path
 
+import numpy as np
 import openpyxl
 import pandas as pd
 import pytest
 
 from read_instruments import (
+    find_adcp_files,
+    find_kestrel_files,
+    read_adcp,
+    read_adcp_file,
+    read_kestrel,
+    read_kestrel_file,
+    read_pd0,
     find_campbell_files,
     read_campbell,
     read_campbell_file,
@@ -616,3 +624,204 @@ def test_read_campbell_one_table(tmp_path):
 
 def test_read_campbell_empty_directory(tmp_path):
     assert read_campbell(tmp_path, utc_offset="UTC").empty
+
+
+CAMPBELL_CR300 = CAMPBELL_DIR / "CR300-Bintang_ATMOS41_Table.dat"
+
+
+def test_read_campbell_file_cr300_names():
+    # ATMOS 41 on a CR300 (Gambia): 1-min samples with other field names
+    data = read_campbell_file(CAMPBELL_CR300, utc_offset="UTC")
+    assert len(data) == 10
+    assert data.index[0] == utc("2025-01-15 12:00:00")
+    assert list(data.columns) == [
+        "SWin_Wm2", "Precip_mm", "Strikes_count", "WS_ms", "WD_deg",
+        "Gust_ms", "Tair_C", "VapPress_kPa", "Press_kPa",
+    ]
+    assert data["SWin_Wm2"].iloc[0] == 758
+    assert data["WS_ms"].iloc[1] == pytest.approx(1.66)
+    assert data["Tair_C"].iloc[0] == pytest.approx(27.3)
+
+
+# Kestrel
+
+KESTREL_DIR = DATA / "kestrel"
+KESTREL_SFM = KESTREL_DIR / "sfm/WEATHER - 2886315_2025-01-12 19_09_00.csv"
+KESTREL_SOPPEN = KESTREL_DIR / "soppen/WEATHER - 2111767_2018-05-19 10_48_30.csv"
+KESTREL_COLUMNS = [
+    "Tair_C", "Twet_C", "RH_pct", "Baro_hPa", "Alt_m", "Press_hPa", "WS_ms", "HeatIndex_C",
+    "Tdew_C", "DensAlt_m", "Crosswind_ms", "Headwind_ms", "WDmag_deg", "WD_deg", "WindChill_C",
+]
+
+
+def test_read_kestrel_file_5500l():
+    data = read_kestrel_file(KESTREL_SFM, utc_offset="UTC")
+    assert list(data.columns) == KESTREL_COLUMNS
+    assert len(data) == 20
+    assert data.index.name == "Datetime"
+    # The export starts with a stale point from an earlier deployment
+    assert data.index[0] == utc("2024-04-11 04:58:30")
+    assert data.index[1] == utc("2025-01-11 15:50:00")
+    assert data["Tair_C"].iloc[1] == pytest.approx(32.1)
+    assert data["Press_hPa"].iloc[1] == pytest.approx(1011.0)
+    # No wind vane: "***" directions are missing
+    assert data["WD_deg"].isna().all()
+    assert (data.dtypes == float).all()
+
+
+def test_read_kestrel_file_older_units():
+    # LiNK 1.02 writes "Deg. C" and "m" where 1.04 writes "Celsius" and "Meters"
+    data = read_kestrel_file(KESTREL_SOPPEN, utc_offset="UTC+02:00")
+    assert list(data.columns) == KESTREL_COLUMNS
+    assert data.index[0] == utc("2016-10-06 11:28:00")
+    assert data["WS_ms"].iloc[0] == pytest.approx(3.6)
+    assert data["WD_deg"].iloc[0] == pytest.approx(79.0)
+
+
+def test_read_kestrel_file_needs_offset():
+    with pytest.raises(ValueError, match="utc_offset"):
+        read_kestrel_file(KESTREL_SFM)
+
+
+def test_read_kestrel_one_meter_per_call():
+    assert len(find_kestrel_files(KESTREL_DIR)) == 2
+    with pytest.raises(ValueError, match="several loggers"):
+        read_kestrel(KESTREL_DIR, utc_offset="UTC")
+    data = read_kestrel(KESTREL_DIR, utc_offset="UTC", serial=2886315, resample=None)
+    pd.testing.assert_frame_equal(data, read_kestrel_file(KESTREL_SFM, utc_offset="UTC"))
+
+
+def test_read_kestrel_overlapping_downloads(tmp_path):
+    # Each download holds the whole meter memory
+    lines = KESTREL_SFM.read_text().splitlines()
+    (tmp_path / "a.csv").write_text("\n".join(lines[:21]))
+    (tmp_path / "b.csv").write_text("\n".join(lines))
+    (tmp_path / "notes.csv").write_text("a,b\n1,2\n")
+    assert len(find_kestrel_files(tmp_path)) == 2
+    data = read_kestrel(tmp_path, utc_offset="UTC", resample=None)
+    pd.testing.assert_frame_equal(data, read_kestrel_file(KESTREL_SFM, utc_offset="UTC"))
+
+
+# RDI ADCP (PD0)
+
+ADCP_DIR = DATA / "adcp"
+# Last 28 ensembles of a WinRiver II file, heading crossing north
+ADCP_PD0 = ADCP_DIR / "Station_3_0_000_25-01-12.PD0"
+
+
+def test_read_pd0_profiles():
+    pd0 = read_pd0(ADCP_PD0, utc_offset="UTC")
+    assert pd0.vel.shape == pd0.corr.shape == pd0.echo.shape == pd0.pgood.shape == (4, 48, 28)
+    assert pd0.bt_range.shape == pd0.bt_vel.shape == (4, 28)
+    assert pd0.coordinates == "ship"
+    assert pd0.beam_angle == 20.0
+    assert not pd0.upward
+    assert pd0.cell_size == 0.5
+    assert pd0.blank == 0.25
+    assert pd0.bin_distance[:3] == pytest.approx([0.98, 1.48, 1.98])
+    assert pd0.vel[:, 0, 0] == pytest.approx([0.052, -0.124, 0.025, -0.178])
+    assert list(pd0.corr[:, 0, 0]) == [114, 158, 130, 101]
+    assert list(pd0.echo[:, 0, 0]) == [161, 174, 159, 161]
+    # Bad velocities (0x8000) are NaN
+    assert 0 < np.isnan(pd0.vel).mean() < 0.2
+    assert pd0.time.equals(pd0.ensembles.index)
+
+
+def test_read_adcp_file_ensembles():
+    data = read_adcp_file(ADCP_PD0, utc_offset="UTC")
+    assert len(data) == 28
+    assert data.index.name == "Datetime"
+    # Hundredths of seconds are kept
+    assert data.index[0] == utc("2024-12-28 10:00:14.33")
+    assert data["Ens"].iloc[0] == 3179
+    assert data["Pitch_deg"].iloc[0] == pytest.approx(4.94)
+    assert data["Temp_C"].iloc[0] == pytest.approx(24.12)
+    assert data["BTRange1_m"].iloc[0] == pytest.approx(4.35)
+    assert data["BTRange_m"].iloc[0] == pytest.approx((4.35 + 4.18 + 4.35 + 4.10) / 4)
+    assert data["BTVel1_ms"].iloc[0] == pytest.approx(-0.154)
+
+
+def test_read_adcp_file_heading_is_unsigned():
+    # Headings above 327.67 degrees do not fit a signed 16-bit integer
+    heading = read_adcp_file(ADCP_PD0, utc_offset="UTC")["Heading_deg"]
+    assert heading.iloc[9] == pytest.approx(1.60)
+    assert heading.iloc[10] == pytest.approx(359.73)
+    assert heading.between(0, 360).all()
+
+
+def test_read_adcp_file_needs_offset():
+    with pytest.raises(ValueError, match="utc_offset"):
+        read_adcp_file(ADCP_PD0)
+
+
+def test_read_pd0_skips_corrupt_ensembles(tmp_path):
+    raw = bytearray(ADCP_PD0.read_bytes())
+    size = len(raw) // 28
+    raw[size + 100] ^= 0xFF  # second ensemble fails its checksum
+    path = tmp_path / "corrupt.PD0"
+    path.write_bytes(b"\x00garbage\x7f\x7f" + raw)
+    data = read_adcp_file(path, utc_offset="UTC")
+    full = read_adcp_file(ADCP_PD0, utc_offset="UTC")
+    assert len(data) == 27
+    assert data["Ens"].tolist() == [e for i, e in enumerate(full["Ens"]) if i != 1]
+
+
+def test_read_pd0_no_ensembles(tmp_path):
+    path = tmp_path / "empty.PD0"
+    path.write_bytes(b"not an adcp file")
+    with pytest.raises(ValueError, match="no valid PD0 ensemble"):
+        read_pd0(path, utc_offset="UTC")
+
+
+def test_read_adcp_directory(tmp_path):
+    (tmp_path / "Station_3_0").mkdir()
+    (tmp_path / "Station_3_0/a.PD0").write_bytes(ADCP_PD0.read_bytes())
+    (tmp_path / "Station_3_0/a_GPS.TXT").write_text("$GPGGA,\n")
+    assert find_adcp_files(tmp_path) == [tmp_path / "Station_3_0/a.PD0"]
+    data = read_adcp(tmp_path, utc_offset="UTC")
+    pd.testing.assert_frame_equal(data, read_adcp_file(ADCP_PD0, utc_offset="UTC"))
+    assert read_adcp(tmp_path, utc_offset="UTC", resample="10s")["BTRange_m"].notna().all()
+
+
+IDRONAUT_TXT = DATA / "idronaut/BlueMap001.txt"
+
+
+def test_salinity_pss78_check_values():
+    from read_instruments import salinity_pss78
+
+    # UNESCO (1983) check values (IPTS-68 temperatures, converted to ITS-90 here)
+    assert salinity_pss78(42.914, 15 / 1.00024, 0) == pytest.approx(35.0, abs=1e-4)
+    assert salinity_pss78(1.888091 * 42.914, 40 / 1.00024, 10000) == pytest.approx(40.0, abs=1e-4)
+
+
+def test_read_idronaut_file():
+    from read_instruments import find_idronaut_files, read_idronaut, read_idronaut_file, salinity_pss78
+
+    data = read_idronaut_file(IDRONAUT_TXT, utc_offset="UTC")
+    assert {"Depth_m", "Press_dbar", "Temp_C", "Cond_mScm", "SpCond_mScm", "Sal_psu", "DO_pctsat", "DO_mgL"} <= set(data.columns)
+    assert data.index[0] == utc("2026-01-29 10:20:52.5")
+    assert data["Cast"].iloc[0] == "BlueMap001"
+    assert data["Sal_psu"].iloc[0] == pytest.approx(34.13)
+    # The instrument's salinity is PSS-78
+    in_water = data["Cond_mScm"] > 1
+    computed = salinity_pss78(data["Cond_mScm"], data["Temp_C"], data["Press_dbar"])[in_water]
+    assert (computed - data.loc[in_water, "Sal_psu"]).abs().max() < 0.02
+    with pytest.raises(ValueError, match="utc_offset"):
+        read_idronaut_file(IDRONAUT_TXT)
+    assert find_idronaut_files(DATA / "idronaut") == [IDRONAUT_TXT]
+    assert len(read_idronaut(DATA / "idronaut", utc_offset="UTC")) == len(data)
+
+
+def test_read_seabird_computes_salinity_when_missing():
+    data = read_seabird_file(SEABIRD_CNV, utc_offset="UTC")
+    assert "Sal_psu" in data
+    assert data["Sal_psu"].between(0, 1).all()  # lake water
+
+
+def test_sigma_t_check_values():
+    from read_instruments import sigma_t
+
+    # UNESCO (1981) check values of the one-atmosphere density (IPTS-68 temperatures)
+    assert sigma_t(0, 5 / 1.00024) == pytest.approx(999.96675 - 1000, abs=1e-5)
+    assert sigma_t(35, 5 / 1.00024) == pytest.approx(1027.67547 - 1000, abs=1e-5)
+    assert sigma_t(35, 25 / 1.00024) == pytest.approx(1023.34306 - 1000, abs=1e-5)

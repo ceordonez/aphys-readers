@@ -1,13 +1,16 @@
 [project]
 name = "read-instruments"
 version = "0.1.0"
-description = "Readers for Aquatic Physics group instruments (EXO2, LGR, Sea-Bird, GPS, mooring loggers, MeteoSwiss stations, Campbell loggers; Picarro planned)"
+description = "Readers for Aquatic Physics group instruments (EXO2, LGR, Sea-Bird, GPS, RDI ADCP, Kestrel, mooring loggers, MeteoSwiss stations, Campbell loggers; Picarro planned)"
 readme = "README.md"
 requires-python = ">=3.12"
+# Lower bounds are the oldest versions the tests pass on, so that projects
+# pinned to older pandas can depend on this package
 dependencies = [
-    "chardet>=7.6.0",
+    "chardet>=5.2.0",
+    "numpy>=2.0",
     "openpyxl>=3.1.5",
-    "pandas>=3.0.6",
+    "pandas>=2.3.3",
     "xlrd>=2.0.2",
 ]
 

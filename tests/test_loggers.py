@@ -37,6 +37,7 @@ from read_instruments.utils import offset_hours
 DATA = Path(__file__).parent / "data"
 VEMCO = DATA / "vemco"
 HOBO = DATA / "hobo"
+HOBO_U20 = DATA / "hobo_u20/20619145_2.csv"
 MINIDOT = DATA / "minidot"
 RBR = DATA / "rbr"
 SOLINST = DATA / "solinst"
@@ -124,6 +125,17 @@ def test_read_hobo_file_spanish():
     assert len(data) == 100
     assert data.index[0] == utc("2017-08-28 20:00")
     assert data["Temp_C"].iloc[0] == 18.331
+
+
+def test_read_hobo_file_u20_water_level():
+    data = read_hobo_file(HOBO_U20)
+    assert list(data.columns) == ["Pressure_kPa", "Temp_C"]
+    assert len(data) == 20  # coupler and host event rows dropped
+    assert data.index[0] == utc("2025-05-12 11:30:17")  # GMT+00:00
+    assert data["Pressure_kPa"].iloc[0] == 101.075
+    assert data["Temp_C"].iloc[0] == 31.166
+    # The closing row holds a reading and the end-of-file event
+    assert data.index[-1] == utc("2025-06-19 15:30:17")
 
 
 def test_read_hobo_one_logger_per_call():

@@ -15,6 +15,9 @@ Sample times are ``start_time`` plus the elapsed time: the ``timeS`` or
 That only holds for files whose rows are consecutive scans, so files that went
 through Bin Average are rejected.
 
+When the file has no salinity column but has conductivity, temperature and
+pressure, ``Sal_psu`` is computed with PSS-78 (``seawater.salinity_pss78``).
+
 The pressure is sea pressure: the instrument subtracts a standard sea-level
 atmosphere (10.1325 dbar), so on a lake above sea level it reads below zero at
 the surface, and the depth columns computed from it are offset too. The
@@ -28,6 +31,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from read_instruments.seawater import salinity_pss78
 from read_instruments.utils import Paths, StrPath, UtcOffset, combine, resolve_files, to_utc, walk_files
 
 NAME = re.compile(r"#\s*name\s+\d+\s*=\s*([^:]+):")
@@ -160,7 +164,20 @@ def read_seabird_file(path: StrPath, utc_offset: UtcOffset = None) -> pd.DataFra
     data.index = to_utc(times, utc_offset, path)
 
     data = data.drop(columns=[c for c in TIME_COLUMNS if c in data])
-    return data.rename(columns=lambda c: COLUMN_NAMES.get(c, c))
+    data = data.rename(columns=lambda c: COLUMN_NAMES.get(c, c))
+    if "Sal_psu" not in data and {"Temp_C", "Press_dbar"} <= set(data.columns):
+        cond = conductivity_mscm(data)
+        if cond is not None:
+            data["Sal_psu"] = salinity_pss78(cond, data["Temp_C"], data["Press_dbar"])
+    return data
+
+
+def conductivity_mscm(data: pd.DataFrame) -> pd.Series | None:
+    """Conductivity in mS/cm from whichever unit the file has, or None."""
+    for column, factor in (("Cond_mScm", 1.0), ("Cond_uScm", 1e-3), ("Cond_Sm", 10.0)):
+        if column in data:
+            return data[column] * factor
+    return None
 
 
 def split_file(path: Path) -> tuple[list[str], list[str]]:

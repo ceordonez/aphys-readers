@@ -37,6 +37,16 @@ COLUMN_NAMES = {
     "gWSpeed_Tot": "Gust_ms",
     "Pp_Tot": "Precip_mm",
     "batt_volt_Min": "Battery_V",
+    # ATMOS 41 on a CR300, 1-min samples (Gambia, table ATMOS41_Table)
+    "Solar": "SWin_Wm2",
+    "Precipitation": "Precip_mm",
+    "Strikes": "Strikes_count",
+    "WindSpeed": "WS_ms",
+    "WindDirection": "WD_deg",
+    "GustWindSpeed": "Gust_ms",
+    "AirTemp": "Tair_C",
+    "Vapor_Pressure": "VapPress_kPa",
+    "AtmPressure": "Press_kPa",
 }
 DROP_COLUMNS = ("RECORD",)
 

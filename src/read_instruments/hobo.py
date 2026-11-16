@@ -1,4 +1,8 @@
-"""Reader for Onset HOBO Pendant temperature/light loggers (HOBOware ``.csv`` exports)."""
+"""Reader for Onset HOBO loggers (HOBOware ``.csv`` exports).
+
+Tested on HOBO Pendant temperature/light loggers and U20 water level loggers
+(absolute pressure and temperature).
+"""
 
 import csv
 import io
@@ -24,6 +28,13 @@ SERIAL = re.compile(r"LGR S/N: (\d+)")
 TIME_ZONE = re.compile(r"GMT([+-]\d\d:\d\d)")
 # HOBOware writes month-first dates with a 12-hour clock in English and Spanish exports
 DATE_FORMAT = "%m/%d/%y %I:%M:%S %p"
+# Column header start -> output name. "Abs Pres, kPa" is the U20 sensor; the
+# barometric reference of compensated exports ("Abs Pres Barom., kPa") is not it
+CHANNELS = {
+    re.compile(r"Temp\b"): "Temp_C",
+    re.compile(r"Intens", re.I): "Light_lux",
+    re.compile(r"Abs Pres, kPa"): "Pressure_kPa",
+}
 
 
 def read_hobo(
@@ -32,7 +43,7 @@ def read_hobo(
     utc_offset: UtcOffset = None,
     resample: str | None = "1min",
 ) -> pd.DataFrame:
-    """Read HOBO Pendant data of one logger.
+    """Read HOBO data of one logger.
 
     Parameters
     ----------
@@ -49,8 +60,9 @@ def read_hobo(
     Returns
     -------
     pandas.DataFrame
-        ``Temp_C`` and ``Light_lux`` indexed by UTC ``Datetime``; empty if no
-        files were found.
+        ``Temp_C`` with ``Light_lux`` (Pendant) or ``Pressure_kPa`` (U20,
+        absolute pressure), indexed by UTC ``Datetime``; empty if no files
+        were found.
     """
     logging.info("Reading HOBO data")
     files = check_one_logger(resolve_files(paths, find_hobo_files), hobo_serial, serial)
@@ -101,10 +113,14 @@ def read_hobo_file(path: StrPath, utc_offset: UtcOffset = None) -> pd.DataFrame:
     columns = next(csv.reader([lines[head]]))
     if utc_offset is None and (match := TIME_ZONE.search(columns[1])):
         utc_offset = match.group(1)
-    temp = next(i for i, c in enumerate(columns) if c.startswith("Temp"))
-    light = next((i for i, c in enumerate(columns) if re.match(r"Intens", c, re.I)), None)
+    names = {1: "Datetime"}
+    for i, column in enumerate(columns):
+        name = next((n for pattern, n in CHANNELS.items() if pattern.match(column)), None)
+        if name is not None and name not in names.values():
+            names[i] = name
+    if "Temp_C" not in names.values():
+        raise ValueError(f"{path}: no temperature column")
     raw = pd.read_csv(io.StringIO("\n".join(lines[head + 1 :])), header=None, dtype=str)
-    names = {1: "Datetime", temp: "Temp_C"} | ({light: "Light_lux"} if light is not None else {})
     raw = raw[list(names)].rename(columns=names)
     raw = raw.dropna(subset=[c for c in raw.columns if c != "Datetime"], how="all")
     times = pd.to_datetime(raw.pop("Datetime"), format=DATE_FORMAT)

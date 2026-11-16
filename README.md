@@ -7,16 +7,21 @@ Small, reusable routines to read raw data from the instruments of the Aquatic Ph
 | LGR greenhouse gas analyser | `read_lgr` | Daily `*_f0000.txt` files, plain or zipped |
 | YSI EXO2 sonde | `read_exo2` | KOR exports, CSV or Excel |
 | GPS | `read_gps` | GPX tracks, WinRiver II NMEA logs |
+| Teledyne RDI ADCP (Workhorse / WinRiver II) | `read_adcp`, `read_pd0` | Binary `.PD0` files |
+| Kestrel weather meter (5500, 5500L) | `read_kestrel` | Kestrel LiNK `.csv` exports |
 | Vemco Minilog-II-T | `read_vemco` | LoggerVUE `.csv` exports |
-| HOBO Pendant | `read_hobo` | HOBOware `.csv` exports (English or Spanish) |
+| HOBO Pendant, HOBO U20 water level | `read_hobo` | HOBOware `.csv` exports (English or Spanish) |
 | PME miniDOT | `read_minidot` | Concatenated `Cat.TXT` files, or the daily files |
 | RBR (e.g. TR-1060) | `read_rbr` | Ruskin text exports (ODV spreadsheet or plain) |
 | Solinst Levelogger / Barologger | `read_solinst` | `.xle` files and their `.csv` exports |
 | CH4/CO2 probe ("Roma") | `read_roma` | Probe text files, raw or processed |
-| Sea-Bird CTD (SBE 19plus) | `read_seabird` | `.cnv` files from SBE Data Processing |
+| Sea-Bird CTD (SBE 19plus) | `read_seabird` | `.cnv` files from SBE Data Processing; `Sal_psu` computed (PSS-78) when the file has none |
+| Idronaut CTD (Ocean Seven 316Plus) | `read_idronaut` | REDAS text exports (`Col n :` header, start time, CSV data); a `Cast` column per file |
 | Campbell Scientific loggers (e.g. METER ATMOS 41 weather station on a CR200) | `read_campbell` | `TOA5` table files (`.dat`) |
 | MeteoSwiss weather stations | `read_meteoswiss` | Open-data station files (`ogd-smn_<station>_<t/h/d/m/y>_*.csv`) |
 | Picarro | planned | |
+
+Practical salinity from conductivity, temperature and pressure (PSS-78, UNESCO 1983) is available as `salinity_pss78`.
 
 ## Install
 
@@ -70,7 +75,7 @@ The output is always UTC. LGR, EXO2, GPS, miniDOT and MeteoSwiss data are in UTC
 | HOBO | the date column header (`Date Time, GMT+02:00`) |
 | miniDOT | Unix timestamps (UTC) |
 | RBR plain export | the `Z` on each timestamp (UTC) |
-| RBR ODV export, Solinst, CH4/CO2 probe, Sea-Bird, Campbell | nothing: pass `utc_offset` |
+| RBR ODV export, Solinst, CH4/CO2 probe, Sea-Bird, Idronaut, Campbell, Kestrel, ADCP | nothing: pass `utc_offset` |
 
 `utc_offset` accepts `"UTC+02:00"`, `"GMT+1"`, `"+02:00"`, `"UTC"` or a number of hours. When given, it overrides the offset in the file. A reader raises an error rather than guess when a file states no offset and none is given.
 
@@ -91,7 +96,7 @@ Columns:
 | Reader | Columns |
 | --- | --- |
 | `read_vemco` | `Temp_C` |
-| `read_hobo` | `Temp_C`, `Light_lux` |
+| `read_hobo` | `Temp_C`, `Light_lux` (Pendant) or `Pressure_kPa` (U20, absolute pressure) |
 | `read_minidot` | `Temp_C`, `ODO_mgL`, `ODO_pctsat` (Cat files), `Q`, `Battery_V` (newer firmware) |
 | `read_rbr` | one per channel, e.g. `Temp_C`; `Temp_raw` for uncalibrated thermistor ratios |
 | `read_solinst` | `Level_m` (Levelogger) or `Pressure_kPa` (Barologger), `Temp_C` |
@@ -171,7 +176,42 @@ atmos = read_campbell("data/raw/weather/atmos41", utc_offset="UTC+01:00")
 - **Time zone:** the files do not state the logger clock's time zone; pass `utc_offset`. Timestamps are kept as recorded: for averages and totals Campbell marks the **end** of the interval.
 - **One table per call:** a logger writes one file per table (10-min, daily...). Pass `table=` (the last field of the first header line, e.g. `"Atmos41_10min"`) when a folder holds several.
 - **Overlapping downloads:** each download repeats what is still in the logger memory; identical rows are kept once.
-- **Columns:** the ATMOS 41 fields are renamed (`Rad_Avg` → `SWin_Wm2`, `AirTemp_Avg` → `Tair_C`, `AirPress_Avg` → `Press_kPa`, `VaporPress_Avg` → `VapPress_kPa`, `WSpeed_Avg` → `WS_ms`, `WDirection_Avg` → `WD_deg`, `WSpeed`/`WDirection` (samples) → `WSsmp_ms`/`WDsmp_deg`, `gWSpeed_Tot` → `Gust_ms`, `Pp_Tot` → `Precip_mm`, `batt_volt_Min` → `Battery_V`; see `COLUMN_NAMES`); other fields keep their name, units as in the file. `RECORD` is dropped, `NAN` becomes NaN. Values are not checked: the Lake Soppen files have impossible pressures and negative wind averages that need cleaning.
+- **Columns:** the ATMOS 41 fields are renamed (`Rad_Avg` → `SWin_Wm2`, `AirTemp_Avg` → `Tair_C`, `AirPress_Avg` → `Press_kPa`, `VaporPress_Avg` → `VapPress_kPa`, `WSpeed_Avg` → `WS_ms`, `WDirection_Avg` → `WD_deg`, `WSpeed`/`WDirection` (samples) → `WSsmp_ms`/`WDsmp_deg`, `gWSpeed_Tot` → `Gust_ms`, `Pp_Tot` → `Precip_mm`, `batt_volt_Min` → `Battery_V`; see `COLUMN_NAMES`); the CR300 ATMOS 41 program of the Gambia station (1-min samples) is renamed too (`Solar` → `SWin_Wm2`, `AirTemp` → `Tair_C`, `AtmPressure` → `Press_kPa`, `WindSpeed` → `WS_ms`, `GustWindSpeed` → `Gust_ms`, `Strikes` → `Strikes_count`, ...); other fields keep their name, units as in the file. `RECORD` is dropped, `NAN` becomes NaN. Values are not checked: the Lake Soppen files have impossible pressures and negative wind averages that need cleaning.
+
+### Kestrel
+
+Reads Kestrel LiNK exports (`WEATHER - <serial>_<date>.csv`), recognised by their `Device Information:` first line.
+
+```python
+from read_instruments import read_kestrel
+
+wind = read_kestrel("data/raw/kestrel", utc_offset="UTC", resample="30s")
+```
+
+- **Time zone:** the meter clock is set by hand and the export does not state its zone; pass `utc_offset`.
+- **One meter per call:** pass `serial=` when a folder holds exports from several meters.
+- **Overlapping downloads:** each export holds the whole meter memory; identical rows are kept once. Old points from an earlier deployment can remain at the start of an export (e.g. a 2024 point in a 2025 file): slice by time.
+- **Columns** are named from the units row, since units follow the meter settings and LiNK versions spell them differently (`Celsius` / `Deg. C`): `Tair_C`, `Twet_C`, `RH_pct`, `Baro_hPa` (reduced to sea level), `Press_hPa` (station pressure), `Alt_m`, `WS_ms`, `HeatIndex_C`, `Tdew_C`, `DensAlt_m`, `Crosswind_ms`, `Headwind_ms`, `WDmag_deg`, `WD_deg`, `WindChill_C`. `***` (not computed, e.g. no wind vane) becomes NaN.
+
+### RDI ADCP
+
+Reads Teledyne RDI binary files (`.PD0`, as written by WinRiver II). Ensembles that fail their checksum are skipped, and blocks other than the standard ones (such as the NMEA blocks WinRiver II embeds) are ignored.
+
+```python
+from read_instruments import read_adcp, read_pd0
+
+bt = read_adcp("data/raw/adcp/Station_6_0", utc_offset="UTC")   # one row per ensemble
+pd0 = read_pd0("data/raw/adcp/Station_6_0/Station_6_0_004_25-01-13.PD0", utc_offset="UTC")
+pd0.vel          # (beam, cell, ensemble), m/s; also pd0.corr, pd0.echo, pd0.pgood
+pd0.bin_distance # m from the transducer to each cell centre
+pd0.coordinates  # "beam", "instrument", "ship" or "earth"
+```
+
+- **`read_adcp`** gives the per-ensemble values like any other reader: `Ens`, `Heading_deg`, `Pitch_deg`, `Roll_deg`, `Temp_C`, `SoundSpeed_ms`, `Sal_psu` and `XdcrDepth_m` (as set in the instrument), bottom track per beam `BTRange1_m`..`BTRange4_m` and their mean `BTRange_m`, `BTVel1_ms`..`BTVel4_ms`. Every ensemble is kept (`resample=None`).
+- **`read_pd0`** also gives the profiles, the bottom track as arrays, and the settings (`cell_size`, `blank`, `beam_angle`, `upward`).
+- **Velocities are not transformed.** They are in the coordinate system set in the instrument (`coordinates`): beams 1-4, or x/y/z/error (instrument, ship), or east/north/up/error (earth). The same holds for the bottom-track velocities.
+- **Bottom-track range** is, as RDI documents it, the *vertical* range from the transducer to the bottom per beam, not corrected for pitch and roll. Add the transducer depth to get water depth.
+- **Time zone:** the ADCP clock is set from the acquisition computer; pass `utc_offset`. Check it: the clock may be off by days.
 
 ### MeteoSwiss
 
