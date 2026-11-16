@@ -331,6 +331,31 @@ def test_date_formats_from_file_created(created, first_format):
     assert date_formats(created)[0] == first_format
 
 
+def test_date_formats_twelve_hour_rows_win_over_24_hour_stamp():
+    # Copy re-saved by Excel: 24-hour stamp, rows still "9:01:40 am"
+    assert date_formats("06/08/2026 15:35", twelve_hour=True)[0] == "%m/%d/%Y"
+    # A stamp with a day above 12 still decides
+    assert date_formats("21/10/2024 10:13", twelve_hour=True)[0] == "%d/%m/%Y"
+
+
+def test_read_exo2_file_recent_kor_headers(tmp_path):
+    # Recent KOR: TIME (h:mm:ss tt) and DATE (M/d/yyyy), 12-hour clock, UTF-16
+    lines = [
+        "sep=,",
+        "Kor MEASUREMENT DATA FILE EXPORT",
+        "FILE CREATED:,06/08/2026 15:35",
+        "TIME (h:mm:ss tt),DATE (M/d/yyyy),SITE NAME,DEPTH M,TEMP °C",
+        "1:01:40 pm,06/08/2026,RIVER T10,0.185,27.727",
+        "9:01:10 am,06/08/2026,RIVER T10,6.239,28.402",
+    ]
+    path = tmp_path / "RIVER_T10.csv"
+    path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-16")
+    data = read_exo2_file(path)
+    assert list(data.columns) == ["Depth_m", "Temp_C"]
+    assert list(data.index) == [pd.Timestamp("2026-06-08 13:01:40", tz="UTC"),
+                                pd.Timestamp("2026-06-08 09:01:10", tz="UTC")]
+
+
 # GPS
 
 

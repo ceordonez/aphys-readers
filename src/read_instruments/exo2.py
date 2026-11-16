@@ -3,7 +3,8 @@
 Older KOR versions write mixed-case headers (``Date (MM/DD/YYYY)``, ``Temp °C``)
 with the date first; newer ones write upper-case headers (``TIME (HH:MM:SS)``,
 ``DATE (MM/DD/YYYY)``, ``TEMP °C``), may use ``;`` with decimal commas, and list
-rows newest first. Headers are therefore matched case-insensitively.
+rows newest first. Headers are therefore matched case-insensitively. Recent
+versions write ``TIME (h:mm:ss tt)`` and ``DATE (M/d/yyyy)``: a 12-hour clock.
 """
 
 import codecs
@@ -24,7 +25,10 @@ from read_instruments.utils import (
 )
 
 DATE_COL = "DATE (MM/DD/YYYY)"
-TIME_COL_PREFIX = "TIME (HH:"
+# Any spelling of the date header: DATE (MM/DD/YYYY), DATE (M/D/YYYY)
+DATE_HEADER = re.compile(r"DATE \(M{1,2}/D{1,2}/Y{4}\)")
+# TIME (HH:MM:SS), TIME (H:MM:SS TT); not TIME (FRACT. SEC)
+TIME_COL_PREFIX = "TIME (H"
 FRACT_COL = "TIME (FRACT. SEC)"
 FILE_SUFFIXES = (".csv", ".xls", ".xlsx")
 # Multi-part CSV exports of one recording end in _1, _2, ...
@@ -147,17 +151,20 @@ def read_exo2_file(path: StrPath) -> pd.DataFrame:
         data = pd.read_excel(path, sheet_name=sheet, skiprows=skiprows)
         data.columns = [normalise_header(c) for c in data.columns]
 
+    data = data.rename(columns=lambda c: DATE_COL if is_date_header(c) else c)
     time_col = next(c for c in data.columns if c.startswith(TIME_COL_PREFIX))
     # Summary lines (MEAN VALUE, SENSOR SERIAL NUMBER) and repeated headers
     # have no date
     data = data.dropna(subset=[DATE_COL])
-    data = data[data[DATE_COL].astype(str).str.strip().str.upper() != DATE_COL]
+    data = data[~data[DATE_COL].map(is_date_header)]
 
-    dates = parse_dates(data[DATE_COL], path, date_formats(created))
+    times = data[time_col].astype(str).str.strip()
+    twelve_hour = bool(times.str.contains(r"[AP]M$", case=False).any())
+    dates = parse_dates(data[DATE_COL], path, date_formats(created, twelve_hour))
     data.index = pd.DatetimeIndex(
         pd.to_datetime(
-            dates.dt.strftime("%Y-%m-%d") + " " + data[time_col].astype(str).str.strip(),
-            format="%Y-%m-%d %H:%M:%S",
+            dates.dt.strftime("%Y-%m-%d") + " " + times.str.upper(),
+            format="%Y-%m-%d %I:%M:%S %p" if twelve_hour else "%Y-%m-%d %H:%M:%S",
         ),
         name="Datetime",
     ).tz_localize("UTC")
@@ -167,7 +174,7 @@ def read_exo2_file(path: StrPath) -> pd.DataFrame:
         data.index = (data.index + pd.to_timedelta(fraction, unit="s")).rename("Datetime")
 
     # UNNAMED: columns come from blank header cells
-    data = data.drop(columns=[c for c in data.columns if c in _DROP or c.startswith("UNNAMED:")])
+    data = data.drop(columns=[c for c in data.columns if c in _DROP or c == time_col or c.startswith("UNNAMED:")])
     data = data.rename(columns=lambda c: _RENAME.get(c, c))
     return data.apply(to_number)
 
@@ -222,7 +229,7 @@ def separator(lines: list[str], path: StrPath) -> str:
     """
     if lines and lines[0].startswith("sep="):
         return lines[0].split("=", 1)[1]
-    header = next((line for line in lines if DATE_COL in line.upper()), None)
+    header = next((line for line in lines if DATE_HEADER.search(line.upper())), None)
     if header is None:
         raise ValueError(f"No '{DATE_COL}' header row in {path}")
     return max((";", ",", "\t"), key=header.count)
@@ -250,7 +257,7 @@ def kor_sheet(path: Path) -> tuple[str | int, list[list[str]]]:
     candidates = []
     for name, raw in sheets.items():
         rows = [["" if pd.isna(c) else str(c) for c in row] for row in raw.values.tolist()]
-        if not any(c.strip().upper() == DATE_COL for row in rows for c in row):
+        if not any(is_date_header(c) for row in rows for c in row):
             continue
         if rows and rows[0] and rows[0][0].strip().upper().startswith("KOR EXPORT"):
             return name, rows
@@ -285,15 +292,17 @@ def parse_dates(dates: pd.Series, path: StrPath, formats: tuple[str, ...]) -> pd
     raise ValueError(f"Unrecognised date format in {path}")
 
 
-def date_formats(created: str | None) -> tuple[str, ...]:
+def date_formats(created: str | None, twelve_hour: bool = False) -> tuple[str, ...]:
     """Date formats to try, in order, given the ``FILE CREATED`` stamp.
 
     KOR labels the date column MM/DD/YYYY but writes dates in the exporting
     computer's locale, as it does the file creation stamp. The stamp decides
-    the order: a day or month above 12 settles it; otherwise a 12-hour clock
-    (``7/29/2020 1:36:35 PM``) means month-first and a 24-hour clock
-    (``06/08/2023 20:44:08``) day-first. Without a stamp, month-first is tried
-    first, as the header says.
+    the order: a day or month above 12 settles it; otherwise rows on a
+    12-hour clock (`twelve_hour`, ``9:01:40 am``) mean month-first, whatever
+    the stamp (copies re-saved by Excel get a 24-hour stamp but keep the
+    rows); then a 12-hour stamp (``7/29/2020 1:36:35 PM``) means month-first
+    and a 24-hour one (``06/08/2023 20:44:08``) day-first. Without a stamp,
+    month-first is tried first, as the header says.
     """
     day_first, month_first = ("%d/%m/%Y", "%m/%d/%Y"), ("%m/%d/%Y", "%d/%m/%Y")
     match = re.match(r"\s*(\d{1,2})/(\d{1,2})/\d{4}", created or "")
@@ -302,6 +311,8 @@ def date_formats(created: str | None) -> tuple[str, ...]:
     if int(match[1]) > 12:
         return day_first
     if int(match[2]) > 12:
+        return month_first
+    if twelve_hour:
         return month_first
     return month_first if re.search(r"\b[AP]M\b", created or "", re.IGNORECASE) else day_first
 
@@ -321,11 +332,14 @@ def file_created(rows: list[list[str]]) -> str | None:
     return None
 
 
+def is_date_header(cell: object) -> bool:
+    """Whether a cell is the date column header, in any of its spellings and cases."""
+    return DATE_HEADER.fullmatch(str(cell).strip().upper()) is not None
+
+
 def header_rows(rows: list[list[str]], path: StrPath) -> list[int]:
-    """Indices of the rows with a ``DATE (MM/DD/YYYY)`` cell (any case)."""
-    found = [
-        idx for idx, row in enumerate(rows) if any(c.strip().upper() == DATE_COL for c in row)
-    ]
+    """Indices of the rows with a date header cell (``DATE (MM/DD/YYYY)``, any spelling and case)."""
+    found = [idx for idx, row in enumerate(rows) if any(is_date_header(c) for c in row)]
     if not found:
         raise ValueError(f"No '{DATE_COL}' header row in {path}")
     return found
