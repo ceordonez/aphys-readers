@@ -1,5 +1,5 @@
 [project]
-name = "read-instruments"
+name = "aphys-readers"
 version = "0.1.0"
 description = "Readers for Aquatic Physics group instruments (EXO2, LGR, Sea-Bird, GPS, RDI ADCP, Kestrel, mooring loggers, MeteoSwiss stations, Campbell loggers; Picarro planned)"
 readme = "README.md"

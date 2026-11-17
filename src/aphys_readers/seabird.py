@@ -31,8 +31,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from read_instruments.seawater import salinity_pss78
-from read_instruments.utils import Paths, StrPath, UtcOffset, combine, resolve_files, to_utc, walk_files
+from aphys_readers.seawater import salinity_pss78
+from aphys_readers.utils import Paths, StrPath, UtcOffset, combine, resolve_files, to_utc, walk_files
 
 NAME = re.compile(r"#\s*name\s+\d+\s*=\s*([^:]+):")
 START_TIME = re.compile(r"#\s*start_time\s*=\s*(\w{3} \d{1,2} \d{4} \d{2}:\d{2}:\d{2})")

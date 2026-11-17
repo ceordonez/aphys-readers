@@ -12,7 +12,7 @@ import openpyxl
 import pandas as pd
 import pytest
 
-from read_instruments import (
+from aphys_readers import (
     find_hobo_files,
     find_minidot_files,
     find_rbr_files,
@@ -32,7 +32,7 @@ from read_instruments import (
     read_vemco,
     read_vemco_file,
 )
-from read_instruments.utils import offset_hours
+from aphys_readers.utils import offset_hours
 
 DATA = Path(__file__).parent / "data"
 VEMCO = DATA / "vemco"

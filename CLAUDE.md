@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Purpose
 
-Small, reusable Python routines for reading raw data files from instruments used by the Aquatic Physics (AP) group at the University of Geneva. Target instruments: Seabird, EXO2, LGR, Picarro, and the mooring loggers. Code lives in the `src/read_instruments/` package (built with `uv_build`), one module per instrument. Readers exist for LGR (`lgr.py`), EXO2 (`exo2.py`), Sea-Bird CTDs (`seabird.py`), GPS (`gps.py`), MeteoSwiss weather stations (`meteoswiss.py`), Campbell Scientific logger tables such as the METER ATMOS 41 station (`campbell.py`), Kestrel weather meters (`kestrel.py`), Teledyne RDI ADCP `.PD0` files (`adcp.py`), and the mooring loggers: Vemco (`vemco.py`), HOBO Pendant and U20 (`hobo.py`), miniDOT (`minidot.py`), RBR (`rbr.py`), Solinst (`solinst.py`) and the CH4/CO2 "Roma" probes (`roma.py`). Picarro is still to be written. Public readers are re-exported from `__init__.py`, so consumers write `from read_instruments import read_lgr`.
+Small, reusable Python routines for reading raw data files from instruments used by the Aquatic Physics (AP) group at the University of Geneva. Target instruments: Seabird, EXO2, LGR, Picarro, and the mooring loggers. Code lives in the `src/aphys_readers/` package (built with `uv_build`), one module per instrument. Readers exist for LGR (`lgr.py`), EXO2 (`exo2.py`), Sea-Bird CTDs (`seabird.py`), GPS (`gps.py`), MeteoSwiss weather stations (`meteoswiss.py`), Campbell Scientific logger tables such as the METER ATMOS 41 station (`campbell.py`), Kestrel weather meters (`kestrel.py`), Teledyne RDI ADCP `.PD0` files (`adcp.py`), and the mooring loggers: Vemco (`vemco.py`), HOBO Pendant and U20 (`hobo.py`), miniDOT (`minidot.py`), RBR (`rbr.py`), Solinst (`solinst.py`) and the CH4/CO2 "Roma" probes (`roma.py`). Picarro is still to be written. Public readers are re-exported from `__init__.py`, so consumers write `from aphys_readers import read_lgr`.
 
 The library is meant to be consumed from other projects via an editable install:
 
 ```
-uv add --editable /path/to/read_instruments
+uv add --editable /path/to/aphys_readers
 ```
 
 ## Commands
@@ -29,7 +29,7 @@ No linter is configured. Dependency lower bounds (pandas 2.3.3, chardet 5.2) are
 
 ## Reader architecture
 
-Every instrument module in `src/read_instruments/` exposes the same three functions, all re-exported from `__init__.py` (add new ones to `__all__`):
+Every instrument module in `src/aphys_readers/` exposes the same three functions, all re-exported from `__init__.py` (add new ones to `__all__`):
 
 - `find_<instrument>_files(directory)` — knows the folder layout and returns the data files.
 - `read_<instrument>_file(path)` — parses one raw file at native resolution.

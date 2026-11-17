@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from read_instruments.utils import Paths, StrPath, UtcOffset, combine, resolve_files, to_utc, walk_files
+from aphys_readers.utils import Paths, StrPath, UtcOffset, combine, resolve_files, to_utc, walk_files
 
 COLUMN = re.compile(r"Col\s+(\d+)\s*:\s*(.+?)\s*\[(.*)\]\s*$")
 DATE = re.compile(r"^\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}$")

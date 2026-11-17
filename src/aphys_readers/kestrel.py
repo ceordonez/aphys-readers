@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from read_instruments.utils import (
+from aphys_readers.utils import (
     Paths,
     StrPath,
     UtcOffset,

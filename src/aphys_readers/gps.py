@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from read_instruments.utils import Paths, StrPath, combine, resolve_files, walk_files
+from aphys_readers.utils import Paths, StrPath, combine, resolve_files, walk_files
 
 COLUMNS = ["Lat_deg", "Lon_deg", "Alt_m"]
 # OpenCPN records tracks of other ships from AIS, named e.g. "AIS  (331394000) ..."

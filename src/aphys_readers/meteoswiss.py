@@ -26,7 +26,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from read_instruments.utils import Paths, StrPath, check_one_logger, combine, resolve_files, walk_files
+from aphys_readers.utils import Paths, StrPath, check_one_logger, combine, resolve_files, walk_files
 
 # ogd-<network>_<station>_<granularity>_<period>[_<years>].csv
 FILE_NAME = re.compile(r"ogd-[a-z]+_([a-z0-9]+)_([tdhmy])_(historical|recent|now)([_-].*)?\.csv$", re.I)

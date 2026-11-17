@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from read_instruments.utils import Paths, StrPath, check_one_logger, combine, resolve_files, walk_files
+from aphys_readers.utils import Paths, StrPath, check_one_logger, combine, resolve_files, walk_files
 
 # Concatenated files written by miniDOTConcatenate (Cat.TXT), and the daily
 # files they are built from, named by their start time in hex (e.g. 57A8BF40.txt)

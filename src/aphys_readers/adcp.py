@@ -34,7 +34,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from read_instruments.utils import Paths, StrPath, UtcOffset, combine, resolve_files, to_utc, walk_files
+from aphys_readers.utils import Paths, StrPath, UtcOffset, combine, resolve_files, to_utc, walk_files
 
 HEADER_ID = b"\x7f\x7f"
 FIXED_LEADER, VARIABLE_LEADER = 0x0000, 0x0080

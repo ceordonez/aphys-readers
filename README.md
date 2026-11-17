@@ -1,4 +1,4 @@
-# Read AP instruments
+# aphys-readers
 
 Small, reusable routines to read raw data from the instruments of the Aquatic Physics group at the University of Geneva.
 
@@ -28,7 +28,7 @@ Practical salinity from conductivity, temperature and pressure (PSS-78, UNESCO 1
 From another project managed with [uv](https://docs.astral.sh/uv/):
 
 ```
-uv add --editable /path/to/read_instruments
+uv add --editable /path/to/aphys_readers
 ```
 
 Requires Python 3.12 or newer.
@@ -36,7 +36,7 @@ Requires Python 3.12 or newer.
 ## Usage
 
 ```python
-from read_instruments import read_exo2, read_lgr
+from aphys_readers import read_exo2, read_lgr
 
 # A directory (searched recursively), a single file, or a list of files
 lgr = read_lgr("/path/to/atm_ghg")
@@ -84,7 +84,7 @@ The output is always UTC. LGR, EXO2, GPS, miniDOT and MeteoSwiss data are in UTC
 A mooring folder holds many loggers of the same type at different depths. Their readers therefore read **one logger per call**: they raise an error if the files come from several loggers, unless you pass `serial=` (leading zeros are ignored).
 
 ```python
-from read_instruments import read_vemco, read_solinst, read_roma
+from aphys_readers import read_vemco, read_solinst, read_roma
 
 t_5m = read_vemco("/path/to/mooring/20170828_20171012/Vemco", serial=357451)
 level = read_solinst("/path/to/mooring", serial=2085605, utc_offset="UTC+02:00")
@@ -151,7 +151,7 @@ exo2/15L103185/
 Reads `.cnv` files (casts converted with SBE Data Processing / DatCnv) below the directory, and `.asc` + `.hdr` pairs (the same conversion saved by SeaTerm in two files) when there is no `.cnv` of the same name. The raw `.hex` uploads need SBE Data Processing first and are ignored.
 
 ```python
-from read_instruments import read_seabird
+from aphys_readers import read_seabird
 
 cast = read_seabird("ctd/sbe19plus/20180410", utc_offset="UTC")
 ```
@@ -168,7 +168,7 @@ cast = read_seabird("ctd/sbe19plus/20180410", utc_offset="UTC")
 Reads Campbell Scientific `TOA5` tables, the text files a CR200/CR1000/CR6 logger writes per table (here `CR200-Soppen_Atmos41_10min.dat`, a METER ATMOS 41 all-in-one weather station). Files are recognised by their first field (`"TOA5"`), whatever their extension.
 
 ```python
-from read_instruments import read_campbell
+from aphys_readers import read_campbell
 
 atmos = read_campbell("data/raw/weather/atmos41", utc_offset="UTC+01:00")
 ```
@@ -183,7 +183,7 @@ atmos = read_campbell("data/raw/weather/atmos41", utc_offset="UTC+01:00")
 Reads Kestrel LiNK exports (`WEATHER - <serial>_<date>.csv`), recognised by their `Device Information:` first line.
 
 ```python
-from read_instruments import read_kestrel
+from aphys_readers import read_kestrel
 
 wind = read_kestrel("data/raw/kestrel", utc_offset="UTC", resample="30s")
 ```
@@ -198,7 +198,7 @@ wind = read_kestrel("data/raw/kestrel", utc_offset="UTC", resample="30s")
 Reads Teledyne RDI binary files (`.PD0`, as written by WinRiver II). Ensembles that fail their checksum are skipped, and blocks other than the standard ones (such as the NMEA blocks WinRiver II embeds) are ignored.
 
 ```python
-from read_instruments import read_adcp, read_pd0
+from aphys_readers import read_adcp, read_pd0
 
 bt = read_adcp("data/raw/adcp/Station_6_0", utc_offset="UTC")   # one row per ensemble
 pd0 = read_pd0("data/raw/adcp/Station_6_0/Station_6_0_004_25-01-13.PD0", utc_offset="UTC")
@@ -218,7 +218,7 @@ pd0.coordinates  # "beam", "instrument", "ship" or "earth"
 Reads the station files of the MeteoSwiss open data (OGD; data © MeteoSwiss, see [opendatadocs.meteoswiss.ch](https://opendatadocs.meteoswiss.ch) for the terms of use and parameter descriptions). One file per station, granularity and period: `ogd-smn_ego_t_historical_2010-2019.csv` is SwissMetNet station EGO (Egolzwil), 10-min values (`t`; also `h`, `d`, `m`, `y`), checked data up to the end of last year (`historical`; also `recent` and `now`).
 
 ```python
-from read_instruments import read_meteoswiss
+from aphys_readers import read_meteoswiss
 
 ego = read_meteoswiss("data/raw/ego")                     # 10-min files by default
 ego_hourly = read_meteoswiss("data/raw/ego", granularity="h")

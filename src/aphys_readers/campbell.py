@@ -27,7 +27,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from read_instruments.utils import Paths, StrPath, UtcOffset, combine, resolve_files, to_utc, walk_files
+from aphys_readers.utils import Paths, StrPath, UtcOffset, combine, resolve_files, to_utc, walk_files
 
 # Field name -> output name (METER ATMOS 41 program); others keep their field name
 COLUMN_NAMES = {

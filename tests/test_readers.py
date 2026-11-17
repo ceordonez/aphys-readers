@@ -13,7 +13,7 @@ import openpyxl
 import pandas as pd
 import pytest
 
-from read_instruments import (
+from aphys_readers import (
     find_adcp_files,
     find_kestrel_files,
     read_adcp,
@@ -41,7 +41,7 @@ from read_instruments import (
     read_seabird,
     read_seabird_file,
 )
-from read_instruments.exo2 import date_formats
+from aphys_readers.exo2 import date_formats
 
 DATA = Path(__file__).parent / "data"
 LGR_WEEK1 = DATA / "lgr/AC_AtmGHG_20200716_20200722"
@@ -813,7 +813,7 @@ IDRONAUT_TXT = DATA / "idronaut/BlueMap001.txt"
 
 
 def test_salinity_pss78_check_values():
-    from read_instruments import salinity_pss78
+    from aphys_readers import salinity_pss78
 
     # UNESCO (1983) check values (IPTS-68 temperatures, converted to ITS-90 here)
     assert salinity_pss78(42.914, 15 / 1.00024, 0) == pytest.approx(35.0, abs=1e-4)
@@ -821,7 +821,7 @@ def test_salinity_pss78_check_values():
 
 
 def test_read_idronaut_file():
-    from read_instruments import find_idronaut_files, read_idronaut, read_idronaut_file, salinity_pss78
+    from aphys_readers import find_idronaut_files, read_idronaut, read_idronaut_file, salinity_pss78
 
     data = read_idronaut_file(IDRONAUT_TXT, utc_offset="UTC")
     assert {"Depth_m", "Press_dbar", "Temp_C", "Cond_mScm", "SpCond_mScm", "Sal_psu", "DO_pctsat", "DO_mgL"} <= set(data.columns)
@@ -845,7 +845,7 @@ def test_read_seabird_computes_salinity_when_missing():
 
 
 def test_sigma_t_check_values():
-    from read_instruments import sigma_t
+    from aphys_readers import sigma_t
 
     # UNESCO (1981) check values of the one-atmosphere density (IPTS-68 temperatures)
     assert sigma_t(0, 5 / 1.00024) == pytest.approx(999.96675 - 1000, abs=1e-5)

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from read_instruments.utils import Paths, StrPath, combine, resolve_files, walk_files
+from aphys_readers.utils import Paths, StrPath, combine, resolve_files, walk_files
 
 # Raw column position -> output name
 COLUMNS = {
