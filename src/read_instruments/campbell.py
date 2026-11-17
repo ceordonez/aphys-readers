@@ -13,6 +13,12 @@ repeats everything still in its memory, so files overlap.
 Timestamps are written by the logger clock, whose time zone the file does not
 state, so `utc_offset` must be given. For averages and totals the timestamp is
 the end of the interval; it is kept as recorded.
+
+The logger's record number (``RECORD``) is kept as ``Record``: it tells rows
+repeated by overlapping downloads from rows that only look alike, and shows
+gaps and logger resets. When a program logs a field both as an average and
+as a sample (``WindSpeed_Avg`` and ``WindSpeed``), the average gets the
+standard name and the sample a ``smp`` one (`SAMPLE_NAMES`).
 """
 
 import csv
@@ -47,8 +53,18 @@ COLUMN_NAMES = {
     "AirTemp": "Tair_C",
     "Vapor_Pressure": "VapPress_kPa",
     "AtmPressure": "Press_kPa",
+    # ATMOS 41 on a CR300, 1-min averages (Mauritius_Atmos41 program, table ATMOS41_Table)
+    "Solar_Avg": "SWin_Wm2",
+    "AtmPressure_Avg": "Press_kPa",
+    "Vapor_Pressure_Avg": "VapPress_kPa",
+    "WindSpeed_Avg": "WS_ms",
+    "WindDirection_Avg": "WD_deg",
+    "GustWindSpeed_Tot": "Gust_ms",
+    "Precipitation_Tot": "Precip_mm",
+    "RECORD": "Record",
 }
-DROP_COLUMNS = ("RECORD",)
+# Samples logged next to their average (<field>_Avg in the same table)
+SAMPLE_NAMES = {"WindSpeed": "WSsmp_ms", "WindDirection": "WDsmp_deg"}
 
 
 def read_campbell(
@@ -125,6 +141,7 @@ def read_campbell_file(path: StrPath, utc_offset: UtcOffset = None) -> pd.DataFr
     logging.info("Reading file: %s", path)
     data = pd.read_csv(path, skiprows=[0, 2, 3], na_values=["NAN", "INF", "-INF"], encoding="latin-1")
     times = pd.to_datetime(data.pop("TIMESTAMP"), format="ISO8601")
-    data = data.drop(columns=[c for c in DROP_COLUMNS if c in data]).apply(pd.to_numeric).astype(float)
+    data = data.apply(pd.to_numeric).astype(float)
     data.index = to_utc(times, utc_offset, path)
-    return data.rename(columns=COLUMN_NAMES)
+    samples = {c: n for c, n in SAMPLE_NAMES.items() if f"{c}_Avg" in data}
+    return data.rename(columns=COLUMN_NAMES | samples)

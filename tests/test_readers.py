@@ -604,6 +604,7 @@ def test_read_campbell_file():
     assert data.index[0] == utc("2018-05-29 13:20:00")
     assert data.index.name == "Datetime"
     assert "RECORD" not in data
+    assert data["Record"].iloc[0] + 1 == data["Record"].iloc[1]  # the logger's record number
     assert {"SWin_Wm2", "Tair_C", "Press_kPa", "VapPress_kPa", "WS_ms", "WD_deg", "Precip_mm", "Battery_V"} <= set(data.columns)
     assert data["Tair_C"].iloc[0] == pytest.approx(19.7)
     assert data["Press_kPa"].iloc[1] == pytest.approx(94.71)
@@ -660,7 +661,7 @@ def test_read_campbell_file_cr300_names():
     assert len(data) == 10
     assert data.index[0] == utc("2025-01-15 12:00:00")
     assert list(data.columns) == [
-        "SWin_Wm2", "Precip_mm", "Strikes_count", "WS_ms", "WD_deg",
+        "Record", "SWin_Wm2", "Precip_mm", "Strikes_count", "WS_ms", "WD_deg",
         "Gust_ms", "Tair_C", "VapPress_kPa", "Press_kPa",
     ]
     assert data["SWin_Wm2"].iloc[0] == 758
@@ -850,3 +851,25 @@ def test_sigma_t_check_values():
     assert sigma_t(0, 5 / 1.00024) == pytest.approx(999.96675 - 1000, abs=1e-5)
     assert sigma_t(35, 5 / 1.00024) == pytest.approx(1027.67547 - 1000, abs=1e-5)
     assert sigma_t(35, 25 / 1.00024) == pytest.approx(1023.34306 - 1000, abs=1e-5)
+
+
+def test_read_campbell_file_averages_and_samples(tmp_path):
+    # CR300 program logging 1-min averages and wind samples (Mauritius_Atmos41):
+    # the averages get the standard names, the samples smp ones
+    lines = [
+        '"TOA5","CR300Series","CR300","10041","CR300.Std.07.00","CPU:Mauritius_Atmos41.CR300","11092","ATMOS41_Table"',
+        '"TIMESTAMP","RECORD","Solar_Avg","AirTemp_Avg","AtmPressure_Avg","Vapor_Pressure_Avg","WindDirection_Avg",'
+        '"WindSpeed_Avg","WindSpeed","WindDirection","Precipitation_Tot","GustWindSpeed_Tot","batt_volt_Min"',
+        '"TS","RN","W/m^2","DegC","kPa","kPa","degrees","m/s","m/s","degrees","mm","m/s",""',
+        '"","","Avg","Avg","Avg","Avg","Avg","Avg","Smp","Smp","Tot","Tot","Min"',
+        '"2024-01-14 10:00:00",7,512,27.1,101.4,2.1,233.5,1.5,1.4,230,0,2.2,12.7',
+    ]
+    path = tmp_path / "ATMOS41_Table.dat"
+    path.write_text("\n".join(lines) + "\n")
+    data = read_campbell_file(path, utc_offset="UTC")
+    assert list(data.columns) == [
+        "Record", "SWin_Wm2", "Tair_C", "Press_kPa", "VapPress_kPa", "WD_deg",
+        "WS_ms", "WSsmp_ms", "WDsmp_deg", "Precip_mm", "Gust_ms", "Battery_V",
+    ]
+    assert data["WS_ms"].iloc[0] == 1.5
+    assert data["WSsmp_ms"].iloc[0] == 1.4
