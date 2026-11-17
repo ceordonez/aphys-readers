@@ -21,11 +21,19 @@ Small, reusable routines to read raw data from the instruments of the Aquatic Ph
 | MeteoSwiss weather stations | `read_meteoswiss` | Open-data station files (`ogd-smn_<station>_<t/h/d/m/y>_*.csv`) |
 | Picarro | planned | |
 
-Practical salinity from conductivity, temperature and pressure (PSS-78, UNESCO 1983) is available as `salinity_pss78`.
+Two seawater routines work on any of these outputs: `salinity_pss78(cond_mscm, temp_c, press_dbar)` gives practical salinity (PSS-78, UNESCO 1983), and `sigma_t(salinity, temp_c)` gives density minus 1000 kg/m³ at atmospheric pressure (EOS-80), enough for stratification over a few tens of metres.
 
 ## Install
 
-From another project managed with [uv](https://docs.astral.sh/uv/):
+From another project managed with [uv](https://docs.astral.sh/uv/), straight from GitHub:
+
+```
+uv add git+https://github.com/ceordonez/aphys-readers
+```
+
+This installs the current version on GitHub; `uv lock --upgrade-package aphys-readers` updates it later, and appending `@<tag or commit>` to the URL pins a version.
+
+To work on the readers themselves, clone the repository and install it in editable mode, so changes take effect without reinstalling:
 
 ```
 uv add --editable /path/to/aphys_readers
@@ -48,9 +56,21 @@ some_files = read_exo2(["a.csv", "b.xlsx"])
 lgr_10min = read_lgr("/path/to/atm_ghg", resample="10min")
 exo_raw = read_exo2("/path/to/exo2/15L103185", resample=None)
 
-# All readers share the same output format, so they can be joined directly
+# Resampled to the same frequency, outputs line up and can be joined directly
 both = lgr.join(exo)
 ```
+
+Instruments at different resolutions (a 1 Hz LGR and sparse GPS fixes, a native-resolution cast and a 10-min weather station) are matched with `merge_nearest`, which adds to each row of the first frame the nearest-in-time row of the second:
+
+```python
+from aphys_readers import merge_nearest, read_gps, read_lgr
+
+lgr = read_lgr("/path/to/atm_ghg", resample=None)
+gps = read_gps("/path/to/gps", resample=None)
+track = merge_nearest(lgr, gps, tolerance="30s")   # NaN where no fix within 30 s
+```
+
+Columns present in both get `_x` / `_y` suffixes. Empty resample bins in the second frame are ignored, so they never hide a real value next to them; `tolerance=None` matches any gap.
 
 Every reader returns a pandas DataFrame with:
 
@@ -145,6 +165,24 @@ exo2/15L103185/
 - **Date order.** KOR labels the date column MM/DD/YYYY but writes dates in the exporting computer's locale. The order is taken from the file's `FILE CREATED` stamp: a 12-hour clock (`7/29/2020 1:36:35 PM`) means month-first, a 24-hour clock (`06/08/2023 20:44:08`) day-first.
 - **Dropped columns:** site name, file name, user, fault code and cable power. Depth, pressure and vertical position are kept (`Depth_m`, `Press_psia` or `Press_bara`, `VPos_m`). The pressure sensor is non-vented, so `Depth_m` moves with air pressure; KOR references it to the air pressure when the depth was last zeroed.
 - **Other variants read:** older KOR CSVs without a `sep=` line, `Temp C` headers, Excel files with edited copies of the data as extra sheets (the `KOR Export File` sheet is used), and copies re-saved by Excel in Latin-1 with `;` and `dd.mm.yyyy` dates.
+- **One sonde per call.** Reading files from different sondes together averages them into a single series. Keep them in separate directories, or pass separate lists of files.
+- **Backup copies.** Don't read a folder that also holds backups of the same data (e.g. a `kor_exports` folder next to the sonde folders): backups often have a different set of columns, so their rows are not recognised as duplicates and appear twice.
+- **Several readings in one timestamp.** Some newer KOR backups log different sensors in separate sections, occasionally at the same second. The 1-minute mean combines them; with `resample=None` they stay as separate rows.
+
+### GPS
+
+Reads GPX files (GPX 1.0 or 1.1, e.g. Garmin eTrex or OpenCPN exports) and the NMEA logs WinRiver II writes next to ADCP files (`*_GPS.TXT`). Columns: `Lat_deg`, `Lon_deg`, `Alt_m`, as in the EXO2 GPS columns.
+
+```python
+from aphys_readers import read_gps
+
+gps = read_gps("data/raw/gps/2020", resample=None)
+```
+
+- **Track points only.** Waypoints and routes are ignored; a GPX file with only waypoints gives no rows.
+- **AIS tracks are skipped.** OpenCPN saves the tracks of other ships it received by AIS (named `AIS ...`) next to the own track; reading them would put the ship far from where it was.
+- **Damaged files.** Some OpenCPN exports have garbage bytes inside a few `<time>` elements, which makes them invalid XML. They are still read, by scanning the text; points whose time does not parse are dropped.
+- **NMEA:** time, position and altitude come from `GGA` sentences with a fix, the date from the latest `RMC`. Any talker is accepted (`GP`, `GN`, ...). When a timestamp repeats within a file, the first fix is kept.
 
 ### Sea-Bird
 
@@ -162,6 +200,21 @@ cast = read_seabird("ctd/sbe19plus/20180410", utc_offset="UTC")
 - **Pressure is sea pressure.** The instrument subtracts a standard sea-level atmosphere (10.1325 dbar), so on a lake above sea level `Press_dbar` and `Depth_m` read below zero at the surface (about −0.7 dbar at 600 m a.s.l.), and the strain-gauge reading drifts for a minute or two after the instrument goes from air into water. Reference the depth to the surface yourself (e.g. from a surface soak before the cast).
 - **Columns:** SBE short names are renamed (`prdM` → `Press_dbar`, `depFM` → `Depth_m`, `tv290C` → `Temp_C`, `c0uS/cm` → `Cond_uScm`, `specc` → `SpCond_uScm`, `sbeox0Mm/L` → `DO_umolL`, `sbeox0PS` → `DO_pctsat`, `flECO-AFL` → `Chl_mgm3`, `turbWETntu0` → `Turb_NTU`, ...; see `COLUMN_NAMES`); others keep their SBE name. Values equal to `# bad_flag` become NaN.
 - **Copies:** identical copies of a cast under different names are kept once when a directory is read.
+
+### Idronaut
+
+Reads Ocean Seven 316Plus casts exported to text by REDAS (`.txt` files with `Col 1 : ...` header lines).
+
+```python
+from aphys_readers import read_idronaut
+
+casts = read_idronaut("data/raw/ctd/idronaut", utc_offset="UTC+01:00")
+```
+
+- **Times** are the start time in the header (day first, `29/01/2026 10:20:52`) plus the `Time(s)` column. Every sample is kept (`resample=None` by default).
+- **Time zone:** the file does not state the clock's zone; pass `utc_offset`.
+- **`Cast` column:** the file name (without extension) of each row, so several casts read together can be split with `groupby("Cast")`.
+- **Columns:** `Depth_m`, `Press_dbar`, `Temp_C`, `Cond_mScm`, `SpCond_mScm` (at 25 °C), `Sal_psu`, `DO_pctsat`, `DO_mgL`, `PAR`, `TDS_gL`, `pH`, `Turb_NTU`, `Chl_ugL`; other columns keep their title.
 
 ### Campbell (ATMOS 41)
 
@@ -227,12 +280,6 @@ ego_hourly = read_meteoswiss("data/raw/ego", granularity="h")
 - **Timestamps are UTC and kept as published:** for 10-min and hourly values they mark the *end* of the interval (`16:00` = 15:50:01–16:00:00 for means and totals; current values are taken at that time); for daily, monthly and yearly values they mark the start. `resample` therefore averages each value into the bin of its end time.
 - **One station per call:** pass `station=` (e.g. `"EGO"`) when a folder holds several. Only files of one granularity are read from a directory; the metadata files (`ogd-smn_meta_parameters.csv`, ...) are ignored.
 - **Columns:** the 10-min parameter short names are renamed (`tre200s0` → `Tair_C`, `ure200s0` → `RH_pct`, `pva200s0` → `VapPress_hPa`, `prestas0` → `Press_hPa` (station level, QFE), `fkl010z0` → `WS_ms`, `dkl010z0` → `WD_deg`, `rre150z0` → `Precip_mm`, `gre000z0` → `SWin_Wm2`, `oli000z0` → `LWin_Wm2`, ...; see `COLUMN_NAMES`); others keep their short name. Parameters not measured at the station (empty columns) are dropped. Empty fields are missing values.
-
-## Things to watch
-
-- **One sonde per call.** Reading files from different sondes together averages them into a single series. Keep them in separate directories, or pass separate lists of files.
-- **Backup copies.** Don't read a folder that also holds backups of the same data (e.g. a `kor_exports` folder next to the sonde folders): backups often have a different set of columns, so their rows are not recognised as duplicates and appear twice.
-- **Several readings in one timestamp.** Some newer KOR backups log different sensors in separate sections, occasionally at the same second. The 1-minute mean combines them; with `resample=None` they stay as separate rows.
 
 ## Development
 
