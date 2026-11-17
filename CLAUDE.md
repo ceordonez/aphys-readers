@@ -12,6 +12,8 @@ The library is meant to be consumed from other projects via an editable install:
 uv add --editable /path/to/aphys_readers
 ```
 
+User documentation: `README.md` is the overview (instrument table, install, usage, output format, time zones); each reader's details are in `docs/<instrument>.md` (mooring loggers share `docs/mooring.md`), linked from the README table. A new reader gets a table row and a docs page.
+
 ## Commands
 
 Environment is managed with `uv` (Python 3.12, see `.python-version`):
