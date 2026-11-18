@@ -6,6 +6,7 @@ files in a temporary directory.
 """
 
 import csv
+import shutil
 from pathlib import Path
 
 import openpyxl
@@ -24,6 +25,7 @@ from aphys_readers import (
     read_hobo_file,
     read_minidot,
     read_minidot_file,
+    read_rbr,
     read_rbr_file,
     read_roma,
     read_roma_file,
@@ -32,6 +34,7 @@ from aphys_readers import (
     read_vemco,
     read_vemco_file,
 )
+from aphys_readers.rbr import rbr_serial
 from aphys_readers.utils import offset_hours
 
 DATA = Path(__file__).parent / "data"
@@ -203,7 +206,36 @@ def test_find_rbr_files():
     assert [f.name for f in find_rbr_files(RBR)] == [
         "020135_20160525_2238.txt",
         "020138_20160525_2114.txt",
+        "208406_20250724_1223.rsk",
     ]
+
+
+# The .rsk is the first 300 s of an RBRduet³ (Lake Bretaye 2025 mooring), still in air
+RSK = RBR / "208406_20250724_1223.rsk"
+
+
+def test_read_rbr_file_rsk():
+    data = read_rbr_file(RSK)
+    # temp05, the hidden pressure-sensor thermistor, is left out
+    assert list(data.columns) == ["Temp_C", "Pres_dbar"]
+    assert len(data) == 300
+    assert data.index[0] == utc("2025-07-17 12:00:00")  # stored in UTC
+    assert data.index[-1] == utc("2025-07-17 12:04:59")
+    assert data["Temp_C"].iloc[0] == pytest.approx(24.896167, abs=1e-6)
+    assert data["Pres_dbar"].iloc[0] == pytest.approx(8.250604, abs=1e-6)
+
+
+def test_read_rbr_file_rsk_offset_and_serial():
+    data = read_rbr_file(RSK, utc_offset="UTC+02:00")
+    assert data.index[0] == utc("2025-07-17 10:00:00")
+    assert rbr_serial(RSK) == "208406"
+    assert len(read_rbr(RBR, serial=208406, resample="1min")) == 5
+
+
+def test_find_rbr_files_skips_export_of_rsk(tmp_path):
+    shutil.copy(RSK, tmp_path / RSK.name)
+    (tmp_path / RSK.with_suffix(".txt").name).write_text("export of the same samples")
+    assert [f.name for f in find_rbr_files(tmp_path)] == [RSK.name]
 
 
 # Solinst

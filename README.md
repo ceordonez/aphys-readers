@@ -12,7 +12,7 @@ Small, reusable routines to read raw data from the instruments of the Aquatic Ph
 | Vemco Minilog-II-T | [`read_vemco`](docs/mooring.md) | LoggerVUE `.csv` exports |
 | HOBO Pendant, HOBO U20 water level | [`read_hobo`](docs/mooring.md) | HOBOware `.csv` exports (English or Spanish) |
 | PME miniDOT | [`read_minidot`](docs/mooring.md) | Concatenated `Cat.TXT` files, or the daily files |
-| RBR (e.g. TR-1060) | [`read_rbr`](docs/mooring.md) | Ruskin text exports (ODV spreadsheet or plain) |
+| RBR (e.g. TR-1060, RBRsolo³, RBRduet³) | [`read_rbr`](docs/mooring.md) | Native Ruskin `.rsk` files; Ruskin text exports (ODV spreadsheet or plain) |
 | Solinst Levelogger / Barologger | [`read_solinst`](docs/mooring.md) | `.xle` files and their `.csv` exports |
 | CH4/CO2 probe ("Roma") | [`read_roma`](docs/mooring.md) | Probe text files, raw or processed |
 | Sea-Bird CTD (SBE 19plus) | [`read_seabird`](docs/seabird.md) | `.cnv` files from SBE Data Processing; `Sal_psu` computed (PSS-78) when the file has none |
@@ -96,6 +96,7 @@ The output is always UTC. LGR, EXO2, GPS, miniDOT and MeteoSwiss data are in UTC
 | Vemco | the header (`Minilog Initialized: ... (UTC+2)`) |
 | HOBO | the date column header (`Date Time, GMT+02:00`) |
 | miniDOT | Unix timestamps (UTC) |
+| RBR `.rsk` | stored in UTC |
 | RBR plain export | the `Z` on each timestamp (UTC) |
 | RBR ODV export, Solinst, CH4/CO2 probe, Sea-Bird, Idronaut, Campbell, Kestrel, ADCP | nothing: pass `utc_offset` |
 

@@ -1,6 +1,8 @@
-"""Reader for RBR loggers (e.g. TR-1060 temperature) exported from Ruskin as text.
+"""Reader for RBR loggers (e.g. TR-1060, RBRsolo³, RBRduet³).
 
-Two Ruskin text exports are read:
+Ruskin's native ``.rsk`` files are read directly (they are SQLite databases;
+calibrated values are in the ``data`` table, timestamps in milliseconds UTC),
+as are two Ruskin text exports:
 
 - the ODV spreadsheet (``//`` comment header, then tab-separated ``Cruise
   Station Type yyyy-mm-ddThh:mm:ss.sss ... Temp [Degrees_C]``), which states no
@@ -12,6 +14,8 @@ Two Ruskin text exports are read:
 import io
 import logging
 import re
+import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 import pandas as pd
@@ -27,13 +31,16 @@ from aphys_readers.utils import (
     walk_files,
 )
 
-# e.g. 020133_20160525_2051.txt (the .hex next to it is the binary original)
-FILE_NAME = re.compile(r"(\d{6})_\d{8}_\d{4}\.txt")
+# e.g. 020133_20160525_2051.txt (the .hex next to it is the binary original),
+# or the native 208406_20250724_1223.rsk
+FILE_NAME = re.compile(r"(\d{6})_\d{8}_\d{4}\.(txt|rsk)")
 SERIAL = re.compile(r"Serial=(\d+)")
 # ODV columns that are not measurements
 ODV_META = ["Cruise", "Station", "Type", "Longitude", "Latitude", "Bot. Depth", "Depth"]
 # Ruskin channel unit -> output unit suffix
 UNITS = {"Degrees_C": "C", "dbar": "dbar"}
+# .rsk channel long name -> output quantity (the names of the text exports)
+RSK_QUANTITIES = {"Temperature": "Temp", "Pressure": "Pres", "Sea pressure": "SeaPres"}
 
 
 def read_rbr(
@@ -53,7 +60,8 @@ def read_rbr(
         Logger to read. Needed when the files come from several loggers.
     utc_offset : str, float or None
         Logger clock offset (e.g. ``"UTC+02:00"``). Required for ODV exports,
-        which state no time zone; overrides the ``Z`` of plain exports.
+        which state no time zone; overrides the UTC of ``.rsk`` files and the
+        ``Z`` of plain exports.
     resample : str or None
         Frequency to average to; None keeps the native resolution.
 
@@ -71,15 +79,22 @@ def read_rbr(
 
 
 def find_rbr_files(directory: StrPath) -> list[Path]:
-    """List Ruskin text exports (``<serial>_<yyyymmdd>_<hhmm>.txt``) below a directory.
+    """List Ruskin files (``<serial>_<yyyymmdd>_<hhmm>.rsk`` or ``.txt``) below a directory.
 
-    Folders whose name starts with ``_`` are skipped.
+    Folders whose name starts with ``_`` are skipped. A text export is skipped
+    when the ``.rsk`` it was exported from is next to it, since both hold the
+    same samples (at different precision, so they would not drop as duplicates).
     """
-    return [f for f in walk_files(directory) if FILE_NAME.fullmatch(f.name)]
+    files = [f for f in walk_files(directory) if FILE_NAME.fullmatch(f.name)]
+    native = {f.with_suffix("") for f in files if f.suffix == ".rsk"}
+    return [f for f in files if f.suffix == ".rsk" or f.with_suffix("") not in native]
 
 
 def rbr_serial(path: StrPath) -> str:
-    """Serial number of the logger that wrote a Ruskin export."""
+    """Serial number of the logger that wrote a Ruskin file."""
+    if Path(path).suffix == ".rsk":
+        with closing(_open_rsk(path)) as db:
+            return str(db.execute("SELECT serialID FROM instruments").fetchone()[0])
     with open(path, encoding="latin-1") as fh:
         for _, line in zip(range(30), fh):
             if match := SERIAL.search(line):
@@ -88,14 +103,50 @@ def rbr_serial(path: StrPath) -> str:
 
 
 def read_rbr_file(path: StrPath, utc_offset: UtcOffset = None) -> pd.DataFrame:
-    """Read one Ruskin text export at native resolution."""
+    """Read one Ruskin file (``.rsk`` or text export) at native resolution."""
     path = Path(path)
     logging.info("Reading file: %s", path)
+    if path.suffix == ".rsk":
+        return read_rsk(path, utc_offset)
     with open(path, encoding="latin-1") as fh:
         first = fh.readline()
     if first.startswith("//"):
         return read_odv(path, utc_offset)
     return read_plain(path, utc_offset)
+
+
+def _open_rsk(path: StrPath) -> sqlite3.Connection:
+    """Open an .rsk read-only, so reading never modifies the raw file."""
+    return sqlite3.connect(f"{Path(path).resolve().as_uri()}?mode=ro", uri=True)
+
+
+def read_rsk(path: Path, utc_offset: UtcOffset = None) -> pd.DataFrame:
+    """Read a native Ruskin ``.rsk`` file (UTC unless overridden).
+
+    Only the channels Ruskin shows are kept: hidden and derived channels have
+    a non-zero ``channelStatus`` (e.g. the RBRduet³'s pressure-sensor
+    thermistor, ``temp05``, used only to compensate the pressure). Columns are
+    named like the text exports (``Temp_C``, ``Pres_dbar``); a repeated name
+    gets a ``_2`` suffix.
+    """
+    with closing(_open_rsk(path)) as db:
+        channels = pd.read_sql(
+            "SELECT ic.channelOrder, c.longNamePlainText AS name, c.unitsPlainText AS unit"
+            " FROM instrumentChannels ic JOIN channels c ON c.channelID = ic.channelID"
+            " WHERE ic.channelStatus = 0 ORDER BY ic.channelOrder",
+            db,
+        )
+        columns = [f"channel{order:02d}" for order in channels["channelOrder"]]
+        data = pd.read_sql(f"SELECT tstamp, {', '.join(columns)} FROM data ORDER BY tstamp", db)
+    names: list[str] = []
+    for name, unit in zip(channels["name"], channels["unit"]):
+        quantity = RSK_QUANTITIES.get(name, name.replace(" ", ""))
+        new = f"{quantity}_{UNITS.get(unit, unit)}"
+        names.append(new if new not in names else f"{new}_{names.count(new) + 1}")
+    times = pd.to_datetime(data.pop("tstamp"), unit="ms")
+    data = data.set_axis(names, axis=1).astype(float)
+    data.index = to_utc(times, "UTC" if utc_offset is None else utc_offset, path)
+    return data
 
 
 def read_odv(path: Path, utc_offset: UtcOffset) -> pd.DataFrame:
